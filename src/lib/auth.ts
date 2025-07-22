@@ -234,7 +234,9 @@ export async function getCurrentUserDetails(uid: string): Promise<Omit<User, 'pa
     const docSnap = await getDoc(userDocRef);
 
     if (docSnap.exists()) {
-        return docSnap.data() as Omit<User, 'password'>;
+        const data = docSnap.data();
+        // Ensure the returned object has the 'id' field from the document ID
+        return { ...data, id: docSnap.id } as Omit<User, 'password'>;
     } else {
         return null;
     }

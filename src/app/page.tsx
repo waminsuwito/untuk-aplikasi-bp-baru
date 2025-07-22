@@ -11,10 +11,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { verifyLogin, getCurrentUserDetails } from '@/lib/auth';
+import { verifyLogin } from '@/lib/auth';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
 import Image from 'next/image';
-import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -37,26 +36,19 @@ export default function LoginPage() {
     try {
         const loggedInUser = await verifyLogin(nik, password);
         
-        if (loggedInUser && auth.currentUser) {
-            // Fetch full user details from firestore
-            const userDetails = await getCurrentUserDetails(auth.currentUser.uid);
-            if (userDetails) {
-                // Save complete user details to local storage for the session
-                localStorage.setItem('app-user', JSON.stringify(userDetails));
-                toast({
-                    title: 'Login Berhasil',
-                    description: `Selamat datang, ${userDetails.username}!`,
-                });
-                // Force a reload to trigger AuthProvider's redirection logic
-                window.location.href = getDefaultRouteForUser(userDetails);
-            } else {
-                 throw new Error("User details not found in database.");
-            }
+        if (loggedInUser) {
+            toast({
+                title: 'Login Berhasil',
+                description: `Selamat datang, ${loggedInUser.username}!`,
+            });
+            // AuthProvider will detect the new user state and redirect automatically.
+            // We can force a reload to ensure all states are fresh.
+            window.location.href = getDefaultRouteForUser(loggedInUser);
         } else {
             toast({
                 variant: 'destructive',
                 title: 'Login Gagal',
-                description: 'NIK atau password yang Anda masukkan salah.',
+                description: 'NIK/Username atau password yang Anda masukkan salah.',
             });
         }
     } catch (error) {
@@ -64,7 +56,7 @@ export default function LoginPage() {
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description: 'Terjadi kesalahan saat mencoba login.',
+            description: 'Terjadi kesalahan saat mencoba login. Periksa koneksi Anda.',
         });
     } finally {
         setIsLoggingIn(false);
