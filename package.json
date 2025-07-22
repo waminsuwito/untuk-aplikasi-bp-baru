@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "postinstall": "npm install"
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.13.0",
