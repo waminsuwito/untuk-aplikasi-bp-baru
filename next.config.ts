@@ -2,6 +2,9 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: "KUNCI_API_GOOGLE_MAPS_ANDA",
+  },
   output: 'export',
   /* config options here */
   typescript: {

@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -9,10 +8,12 @@ import type { Vehicle, Assignment, UserLocation, VehiclePosition } from '@/lib/t
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Truck } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getDatabase, ref, onValue, set } from 'firebase/database';
+import { app } from '@/lib/firebase';
 
 const VEHICLES_STORAGE_KEY_PREFIX = 'app-vehicles-';
 const ASSIGNMENTS_STORAGE_KEY_PREFIX = 'app-assignments-';
-const VEHICLE_POSITIONS_KEY = 'app-vehicle-positions';
+const VEHICLE_POSITIONS_REF = 'vehicle_positions';
 
 const containerStyle = {
   width: '100%',
@@ -54,23 +55,6 @@ const getAssignments = (location: UserLocation): Assignment[] => {
   }
 };
 
-const getVehiclePositions = (): VehiclePosition[] => {
-    try {
-        const stored = localStorage.getItem(VEHICLE_POSITIONS_KEY);
-        return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-        return [];
-    }
-}
-
-const saveVehiclePositions = (positions: VehiclePosition[]) => {
-    try {
-        localStorage.setItem(VEHICLE_POSITIONS_KEY, JSON.stringify(positions));
-    } catch (e) {
-        console.error("Failed to save vehicle positions", e);
-    }
-}
-
 
 export default function PetaKendaraanPage() {
   const { user } = useAuth();
@@ -90,60 +74,48 @@ export default function PetaKendaraanPage() {
     };
   }, [isLoaded]);
 
-  const generateAndStorePositions = useCallback(() => {
+  // Sync with Firebase Realtime Database
+  useEffect(() => {
     if (!user?.location) return;
 
-    const vehicles = getVehiclesForLocation(user.location);
-    const assignments = getAssignments(user.location);
-    const existingPositions = getVehiclePositions();
-    const existingPositionMap = new Map(existingPositions.map(p => [p.id, p]));
-
-    const newPositions = vehicles.map(vehicle => {
-      // If position already exists, use it.
-      if (existingPositionMap.has(vehicle.id)) {
-        // Update operator info just in case it changed
-        const assignment = assignments.find(a => a.vehicleId === vehicle.id);
-        const existingPosition = existingPositionMap.get(vehicle.id)!;
-        existingPosition.operator = assignment?.username || 'Belum ada';
-        return existingPosition;
-      }
-
-      // If not, generate a new random position around the center
-      const assignment = assignments.find(a => a.vehicleId === vehicle.id);
-      return {
-        id: vehicle.id,
-        nomorPolisi: vehicle.nomorPolisi,
-        jenis: vehicle.jenisKendaraan,
-        operator: assignment?.username || 'Belum ada',
-        lat: defaultCenter.lat + (Math.random() - 0.5) * 0.1, // ~11km radius
-        lng: defaultCenter.lng + (Math.random() - 0.5) * 0.1,
-      };
-    });
+    const db = getDatabase(app);
+    const positionsRef = ref(db, `${VEHICLE_POSITIONS_REF}/${user.location}`);
     
-    setVehiclePositions(newPositions);
-    saveVehiclePositions(newPositions);
+    // Listen for real-time updates
+    const unsubscribe = onValue(positionsRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            const positions: VehiclePosition[] = Object.values(data);
+            setVehiclePositions(positions);
+        } else {
+            // If no data, generate initial positions
+            generateInitialPositions();
+        }
+    });
 
+    // Function to generate initial positions if DB is empty
+    const generateInitialPositions = () => {
+        const vehicles = getVehiclesForLocation(user.location as UserLocation);
+        const assignments = getAssignments(user.location as UserLocation);
+        const initialPositions: Record<string, VehiclePosition> = {};
+
+        vehicles.forEach(vehicle => {
+            const assignment = assignments.find(a => a.vehicleId === vehicle.id);
+            initialPositions[vehicle.id] = {
+                id: vehicle.id,
+                nomorPolisi: vehicle.nomorPolisi,
+                jenis: vehicle.jenisKendaraan,
+                operator: assignment?.username || 'Belum ada',
+                lat: defaultCenter.lat + (Math.random() - 0.5) * 0.1,
+                lng: defaultCenter.lng + (Math.random() - 0.5) * 0.1,
+            };
+        });
+        set(positionsRef, initialPositions); // Write initial data to Firebase
+    };
+    
+    return () => unsubscribe();
   }, [user]);
 
-  useEffect(() => {
-    generateAndStorePositions();
-    
-    // Simulate position updates every 30 seconds
-    const interval = setInterval(() => {
-        setVehiclePositions(currentPositions => {
-            const updatedPositions = currentPositions.map(p => ({
-                ...p,
-                lat: p.lat + (Math.random() - 0.5) * 0.001,
-                lng: p.lng + (Math.random() - 0.5) * 0.001,
-            }));
-            saveVehiclePositions(updatedPositions);
-            return updatedPositions;
-        });
-    }, 30000);
-
-    return () => clearInterval(interval);
-
-  }, [generateAndStorePositions]);
 
   const mapCenter = useMemo(() => {
     if (vehiclePositions.length > 0) {
@@ -179,7 +151,7 @@ export default function PetaKendaraanPage() {
           Peta Posisi Kendaraan
         </CardTitle>
         <CardDescription>
-          Lokasi terakhir dari semua kendaraan yang terdaftar. Posisi diperbarui secara berkala.
+          Lokasi terakhir dari semua kendaraan yang terdaftar. Posisi diperbarui secara real-time.
         </CardDescription>
       </CardHeader>
       <CardContent>
