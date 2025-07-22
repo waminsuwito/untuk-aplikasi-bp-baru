@@ -1,6 +1,7 @@
-// This page is no longer needed.
-// The sidebar and header now link directly to the correct pages.
-// Keeping it could cause redirect loops.
+import { redirect } from 'next/navigation';
+
+// This page is no longer needed. The AuthProvider handles redirection.
+// This route handler ensures any stray traffic is redirected correctly.
 export default function KaryawanRootPage() {
-  return null;
+  redirect('/karyawan/absensi-harian');
 }

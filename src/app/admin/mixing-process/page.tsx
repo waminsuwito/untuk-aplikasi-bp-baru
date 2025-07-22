@@ -1,6 +1,3 @@
-// This page is no longer used and has been removed as per the new authentication flow.
-// The admin panel is now solely for user management.
-
-export default function DeprecatedMixingProcessPage() {
-  return null;
-}
+// This file is intentionally blank to resolve a routing conflict.
+// The redirection logic is handled by `route.ts` in the same directory.
+export {};
