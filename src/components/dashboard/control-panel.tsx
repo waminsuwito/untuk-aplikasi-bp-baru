@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { JobMixFormula } from '@/lib/types';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Ban } from 'lucide-react';
 
 interface ControlPanelProps {
   powerOn: boolean;
@@ -37,6 +37,7 @@ interface ControlPanelProps {
   isJobInfoLocked: boolean;
   volumeWarning: string;
   scheduleStatusWarning: string;
+  hasActiveSchedule: boolean;
 }
 
 export function ControlPanel({
@@ -51,7 +52,8 @@ export function ControlPanel({
   isManualProcessRunning,
   isJobInfoLocked,
   volumeWarning,
-  scheduleStatusWarning
+  scheduleStatusWarning,
+  hasActiveSchedule,
 }: ControlPanelProps) {
 
   const [mixWarning, setMixWarning] = useState('');
@@ -76,10 +78,10 @@ export function ControlPanel({
     }
   }
 
-  const isStartDisabled = !powerOn || !jobInfo.reqNo.trim() || Number(jobInfo.targetVolume) <= 0 || (operasiMode === 'AUTO' && !!mixWarning) || (operasiMode === 'MANUAL' && isManualProcessRunning) || !!volumeWarning || !!scheduleStatusWarning;
-  const isStopDisabled = !powerOn || (operasiMode === 'MANUAL' && !isManualProcessRunning);
+  const isStartDisabled = !powerOn || !jobInfo.reqNo.trim() || Number(jobInfo.targetVolume) <= 0 || (operasiMode === 'AUTO' && !!mixWarning) || (operasiMode === 'MANUAL' && isManualProcessRunning) || !!volumeWarning || !!scheduleStatusWarning || !hasActiveSchedule;
+  const isStopDisabled = !powerOn || (operasiMode === 'MANUAL' && !isManualProcessRunning) || !hasActiveSchedule;
   
-  const isFormDisabled = !powerOn || (jobInfo.reqNo.trim() !== '' && !isJobInfoLocked);
+  const isFormDisabled = !powerOn || (jobInfo.reqNo.trim() !== '' && !isJobInfoLocked) || !hasActiveSchedule;
 
 
   return (
@@ -87,6 +89,13 @@ export function ControlPanel({
       {/* Job Info */}
       <Card className="col-span-1">
         <CardContent className="pt-6 space-y-4">
+          {!hasActiveSchedule && (
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-4 rounded-lg">
+                <Ban className="h-10 w-10 text-destructive mb-2"/>
+                <p className="text-center font-semibold text-destructive">TIDAK ADA JADWAL COR AKTIF</p>
+                <p className="text-center text-xs text-muted-foreground">Silakan minta Admin BP untuk mengaktifkan jadwal.</p>
+            </div>
+          )}
           <div>
             <Label htmlFor="req-no" className="text-xs text-muted-foreground">REQ NO</Label>
              <Input 
@@ -95,7 +104,7 @@ export function ControlPanel({
                 value={jobInfo.reqNo} 
                 onChange={e => handleJobInfoChange('reqNo', e.target.value.toUpperCase())} 
                 style={{ textTransform: 'uppercase' }}
-                disabled={!powerOn} 
+                disabled={!powerOn || !hasActiveSchedule} 
             />
             {scheduleStatusWarning && (
                 <div className="text-xs text-destructive mt-1 flex items-center gap-1 p-2 bg-destructive/10 rounded-md">
@@ -133,6 +142,9 @@ export function ControlPanel({
       {/* Target Volume */}
       <Card className="col-span-1">
         <CardContent className="pt-6 space-y-4">
+          {!hasActiveSchedule && (
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 rounded-lg"></div>
+          )}
           <div>
             <Label htmlFor="mutu-beton" className="text-xs text-muted-foreground">MUTU BETON</Label>
             <Select 
@@ -216,8 +228,8 @@ export function ControlPanel({
         <CardContent className="pt-6 space-y-2">
            <div className="text-center text-primary uppercase text-sm tracking-wider font-semibold mb-2">Mode Operasi</div>
            <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => setOperasiMode('MANUAL')} variant={operasiMode === 'MANUAL' ? 'default' : 'secondary'} className="font-bold" disabled={!powerOn}>MANUAL</Button>
-              <Button onClick={() => setOperasiMode('AUTO')} variant={operasiMode === 'AUTO' ? 'default' : 'secondary'} className="font-bold" disabled={!powerOn}>AUTO</Button>
+              <Button onClick={() => setOperasiMode('MANUAL')} variant={operasiMode === 'MANUAL' ? 'default' : 'secondary'} className="font-bold" disabled={!powerOn || !hasActiveSchedule}>MANUAL</Button>
+              <Button onClick={() => setOperasiMode('AUTO')} variant={operasiMode === 'AUTO' ? 'default' : 'secondary'} className="font-bold" disabled={!powerOn || !hasActiveSchedule}>AUTO</Button>
            </div>
            <div className="text-center text-primary uppercase text-sm tracking-wider font-semibold pt-4 mb-2">Kontrol Proses</div>
            <div className="grid grid-cols-2 gap-2">

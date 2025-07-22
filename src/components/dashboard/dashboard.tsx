@@ -20,6 +20,8 @@ import { database } from '@/lib/firebase'; // Import database instance directly
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { AlertTriangle } from 'lucide-react';
 
 
 type AutoProcessStep =
@@ -93,6 +95,10 @@ export function Dashboard() {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [completedBatchData, setCompletedBatchData] = useState<ProductionHistoryEntry | null>(null);
   const [batchStartTime, setBatchStartTime] = useState<Date | null>(null);
+
+  const hasActiveSchedule = useMemo(() => {
+    return scheduleData.some(row => row.status === 'Proses');
+  }, [scheduleData]);
 
   const addLog = (message: string, color: string = 'text-foreground') => {
       setActivityLog(prev => {
@@ -473,6 +479,7 @@ export function Dashboard() {
                 isJobInfoLocked={isJobInfoLocked}
                 volumeWarning={volumeWarning}
                 scheduleStatusWarning={scheduleStatusWarning}
+                hasActiveSchedule={hasActiveSchedule}
               />
             </div>
             <div className="col-span-3">
