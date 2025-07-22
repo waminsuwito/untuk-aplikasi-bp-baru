@@ -139,10 +139,14 @@ export default function OwnerDashboardPage() {
         const totalTerkirim = activeSchedules.reduce((sum, row) => sum + (parseFloat(row.terkirim) || 0), 0);
         const totalSisa = activeSchedules.reduce((sum, row) => sum + (parseFloat(row.sisa) || 0), 0);
         const jumlahLokasiCor = activeSchedules.length;
+        const lokasiSudahKirim = activeSchedules.filter(row => (parseFloat(row.terkirim) || 0) > 0).length;
+        const lokasiBelumKirim = jumlahLokasiCor - lokasiSudahKirim;
 
         return {
             totalVolume: formatNumber(totalVolume),
             jumlahLokasiCor,
+            lokasiSudahKirim,
+            lokasiBelumKirim,
             penambahan: formatNumber(totalPenambahan),
             terkirim: formatNumber(totalTerkirim),
             sisa: formatNumber(totalSisa),
@@ -196,10 +200,12 @@ export default function OwnerDashboardPage() {
             </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-             <SectionCard title="Pengecoran" icon={BarChart}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <SectionCard title="Pengecoran" icon={BarChart}>
                 <DataRow label="Schedule Cor" value={pengecoranStats.totalVolume} unit="M³" />
                 <DataRow label="Jumlah Lokasi Cor" value={pengecoranStats.jumlahLokasiCor} unit="Lokasi" />
+                <DataRow label="Lokasi Sudah Kirim" value={pengecoranStats.lokasiSudahKirim} unit="Lokasi" />
+                <DataRow label="Lokasi Belum Kirim" value={pengecoranStats.lokasiBelumKirim} unit="Lokasi" />
                 <DataRow label="Penambahan" value={pengecoranStats.penambahan} unit="M³"/>
                 <DataRow label="Terkirim" value={pengecoranStats.terkirim} unit="M³"/>
                 <DataRow label="Sisa" value={pengecoranStats.sisa} unit="M³"/>
@@ -252,7 +258,3 @@ export default function OwnerDashboardPage() {
     </div>
   );
 }
-
-    
-
-    
