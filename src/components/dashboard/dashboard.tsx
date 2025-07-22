@@ -16,7 +16,7 @@ import type { MixingProcessConfig, MixerTimerConfig } from '@/lib/config';
 import { useAuth } from '@/context/auth-provider';
 import type { JobMixFormula, ScheduleSheetRow, ProductionHistoryEntry, PrintJobData } from '@/lib/types';
 import { getFormulas } from '@/lib/formula';
-import { app } from '@/lib/firebase'; // Import Firebase app instance
+import { database } from '@/lib/firebase'; // Import database instance directly
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
@@ -110,8 +110,7 @@ export function Dashboard() {
   useEffect(() => {
     if (!powerOn) return;
 
-    const db = getDatabase(app);
-    const weightsRef = ref(db, 'realtime/weights');
+    const weightsRef = ref(database, 'realtime/weights');
 
     const unsubscribeWeights = onValue(weightsRef, (snapshot) => {
       const data = snapshot.val();
@@ -326,13 +325,12 @@ export function Dashboard() {
         // --- Start Real-time Notification ---
         if (user?.location && user.jabatan === 'OPRATOR BP') {
           try {
-            const db = getDatabase(app);
             const printJob: PrintJobData = {
               status: 'pending',
               operatorName: user.username,
               payload: finalData
             };
-            const printJobRef = ref(db, `print_jobs/${user.location}/${finalData.jobId}`);
+            const printJobRef = ref(database, `print_jobs/${user.location}/${finalData.jobId}`);
             set(printJobRef, printJob);
             addLog(`Notifikasi cetak dikirim ke Admin BP`, 'text-blue-400');
           } catch (error) {
