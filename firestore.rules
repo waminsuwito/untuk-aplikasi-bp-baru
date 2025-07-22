@@ -1,9 +1,7 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
     // Allow public read access to the users collection for login verification
     match /users/{userId} {
       allow read: if true; // ANYONE can read user data to verify login
@@ -12,7 +10,7 @@ service cloud.firestore {
     
     // Secure all other collections
     match /{document=**} {
-      allow read, write: if request.auth != null; // User must be authenticated for any other operation
+        allow read, write: if request.auth != null; // User must be authenticated for any other operation
     }
   }
 }
