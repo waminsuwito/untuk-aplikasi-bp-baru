@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -70,8 +69,12 @@ export default function LoginPage() {
     setIsSeeding(true);
     toast({ title: 'Proses Inisialisasi', description: 'Menyiapkan data pengguna awal ke database...' });
     try {
-      await seedUsersToFirestore();
-      toast({ title: 'Berhasil', description: 'Database telah diinisialisasi. Silakan coba login.' });
+      const result = await seedUsersToFirestore();
+      if (result.success) {
+        toast({ title: 'Berhasil', description: result.message });
+      } else {
+        toast({ title: 'Info', description: result.message });
+      }
     } catch (e) {
       console.error(e);
       toast({ variant: 'destructive', title: 'Error', description: 'Gagal melakukan inisialisasi database.' });
@@ -142,3 +145,5 @@ export default function LoginPage() {
     </main>
   );
 }
+
+    

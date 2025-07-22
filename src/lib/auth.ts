@@ -1,11 +1,10 @@
 
-
 'use client';
 
 import { type User, type Jabatan, userLocations, jabatanOptions } from '@/lib/types';
 import { auth, firestore } from '@/lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut } from 'firebase/auth';
-import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBatch, query, where, limit } from 'firebase/firestore';
 
 // The initial set of users to seed the application with if none are found.
 const initialUsers: User[] = [
@@ -61,24 +60,28 @@ const createEmail = (username: string) => `${username.replace(/\s+/g, '_').toLow
 
 /**
  * Seeds the Firestore database with the initial user list.
- * This should be called once.
+ * This should be called once from a manual trigger.
  */
 export async function seedUsersToFirestore() {
   const usersRef = collection(firestore, 'users');
-  const existingUsersSnapshot = await getDocs(usersRef);
+  const q = query(usersRef, limit(1));
+  const existingUsersSnapshot = await getDocs(q);
 
   if (!existingUsersSnapshot.empty) {
-    console.log("Firestore 'users' collection already has data. Seeding skipped.");
-    return;
+    const message = "Database 'users' sudah berisi data. Proses inisialisasi dilewati.";
+    console.log(message);
+    return { success: false, message };
   }
   
-  console.log("Seeding users to Firestore...");
+  console.log("Memulai proses inisialisasi database...");
   const batch = writeBatch(firestore);
+  let successCount = 0;
+  let failCount = 0;
 
   for (const user of initialUsers) {
     try {
       const email = createEmail(user.username);
-      // Create user in Firebase Auth
+      // Create user in Firebase Auth first
       const userCredential = await createUserWithEmailAndPassword(auth, email, user.password || 'defaultPassword123');
       const authUid = userCredential.user.uid;
 
@@ -87,23 +90,24 @@ export async function seedUsersToFirestore() {
       const { password, ...userDataForFirestore } = user; // Exclude password from Firestore document
       batch.set(userDocRef, { ...userDataForFirestore, id: authUid });
 
-      console.log(`User ${user.username} prepared for seeding.`);
+      console.log(`Pengguna ${user.username} disiapkan untuk inisialisasi.`);
+      successCount++;
     } catch (error: any) {
+      failCount++;
       // Ignore "email-already-in-use" as it might happen on re-runs
       if (error.code !== 'auth/email-already-in-use') {
-        console.error(`Failed to create auth user for ${user.username}:`, error);
+        console.error(`Gagal membuat pengguna Auth untuk ${user.username}:`, error);
       } else {
-        console.warn(`Auth user for ${user.username} already exists. Skipping auth creation.`);
-        // If auth user exists, we can still try to write firestore data, but need UID. This path is complex for seeding.
-        // For simplicity, we assume if auth user exists, firestore data likely does too, or was manually handled.
+        console.warn(`Pengguna Auth untuk ${user.username} sudah ada. Melanjutkan...`);
       }
     }
   }
 
   await batch.commit();
-  console.log("Seeding complete.");
+  const finalMessage = `Inisialisasi selesai. Berhasil: ${successCount}, Gagal: ${failCount}.`;
+  console.log(finalMessage);
+  return { success: true, message: finalMessage };
 }
-
 
 /**
  * Retrieves the list of users from Firestore.
@@ -112,17 +116,6 @@ export async function seedUsersToFirestore() {
 export async function getUsers(): Promise<User[]> {
     const usersRef = collection(firestore, 'users');
     const snapshot = await getDocs(usersRef);
-    if (snapshot.empty) {
-      // Added a check to avoid running this on every empty fetch.
-      const seedingFlag = sessionStorage.getItem('firestore_seeded');
-      if (!seedingFlag) {
-        await seedUsersToFirestore();
-        sessionStorage.setItem('firestore_seeded', 'true');
-        const newSnapshot = await getDocs(usersRef);
-        return newSnapshot.docs.map(doc => doc.data() as User);
-      }
-      return [];
-    }
     return snapshot.docs.map(doc => doc.data() as User);
 }
 
@@ -143,7 +136,7 @@ export async function verifyLogin(nikOrUsername: string, password: string): Prom
     );
 
     if (!userDetail) {
-        console.error("Login failed: User details not found in Firestore for input:", nikOrUsername);
+        console.error("Login Gagal: Detail pengguna tidak ditemukan di Firestore untuk input:", nikOrUsername);
         return null;
     }
     
@@ -156,15 +149,15 @@ export async function verifyLogin(nikOrUsername: string, password: string): Prom
         if (loggedInUserDetails) {
             return loggedInUserDetails;
         } else {
-            console.error("Login failed: Auth successful but no user details in Firestore for UID:", userCredential.user.uid);
+            console.error("Login Gagal: Auth berhasil tapi tidak ada detail pengguna di Firestore untuk UID:", userCredential.user.uid);
+            await signOut(auth); // Sign out if data is inconsistent
             return null;
         }
     } catch (error) {
-        console.error("Firebase login failed:", error);
+        console.error("Firebase login gagal:", error);
         return null;
     }
 }
-
 
 export async function addUser(userData: Omit<User, 'id' | 'password'> & { password?: string }): Promise<User> {
     if (!userData.password) {
@@ -196,7 +189,6 @@ export async function updateUser(userId: string, userData: Partial<Omit<User, 'i
     // Note: Changing username/email in Firebase Auth requires re-authentication and is more complex.
     // For this app, we'll only update Firestore data. Password update is a separate function.
 }
-
 
 export async function deleteUser(userId: string): Promise<void> {
     // This is a complex operation. Deleting a Firebase Auth user is irreversible and
@@ -251,3 +243,5 @@ export async function getCurrentUserDetails(uid: string): Promise<Omit<User, 'pa
         return null;
     }
 }
+
+    
