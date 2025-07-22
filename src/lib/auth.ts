@@ -5,10 +5,7 @@
 import { type User, type Jabatan, userLocations, jabatanOptions } from '@/lib/types';
 import { auth, firestore } from '@/lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut } from 'firebase/auth';
-import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc } from 'firebase/firestore';
-
-// The key used to store users in localStorage.
-const USERS_STORAGE_KEY = 'app-users';
+import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 
 // The initial set of users to seed the application with if none are found.
 const initialUsers: User[] = [
@@ -74,35 +71,39 @@ export async function seedUsersToFirestore() {
     console.log("Firestore 'users' collection already has data. Seeding skipped.");
     return;
   }
-
+  
   console.log("Seeding users to Firestore...");
-  const promises = initialUsers.map(async (user) => {
+  const batch = writeBatch(firestore);
+
+  for (const user of initialUsers) {
     try {
       const email = createEmail(user.username);
       // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, user.password || 'defaultPassword123');
       const authUid = userCredential.user.uid;
 
-      // Save user details in Firestore
+      // Prepare user details for Firestore
       const userDocRef = doc(firestore, 'users', authUid);
-      await setDoc(userDocRef, {
-        id: authUid, // Use Firebase Auth UID as the document ID
-        username: user.username,
-        jabatan: user.jabatan,
-        location: user.location,
-        nik: user.nik,
-      });
+      const { password, ...userDataForFirestore } = user; // Exclude password from Firestore document
+      batch.set(userDocRef, { ...userDataForFirestore, id: authUid });
+
+      console.log(`User ${user.username} prepared for seeding.`);
     } catch (error: any) {
       // Ignore "email-already-in-use" as it might happen on re-runs
       if (error.code !== 'auth/email-already-in-use') {
-        console.error(`Failed to seed user ${user.username}:`, error);
+        console.error(`Failed to create auth user for ${user.username}:`, error);
+      } else {
+        console.warn(`Auth user for ${user.username} already exists. Skipping auth creation.`);
+        // If auth user exists, we can still try to write firestore data, but need UID. This path is complex for seeding.
+        // For simplicity, we assume if auth user exists, firestore data likely does too, or was manually handled.
       }
     }
-  });
+  }
 
-  await Promise.all(promises);
+  await batch.commit();
   console.log("Seeding complete.");
 }
+
 
 /**
  * Retrieves the list of users from Firestore.
@@ -112,15 +113,22 @@ export async function getUsers(): Promise<User[]> {
     const usersRef = collection(firestore, 'users');
     const snapshot = await getDocs(usersRef);
     if (snapshot.empty) {
-      await seedUsersToFirestore();
-      const newSnapshot = await getDocs(usersRef);
-      return newSnapshot.docs.map(doc => doc.data() as User);
+      // Added a check to avoid running this on every empty fetch.
+      const seedingFlag = sessionStorage.getItem('firestore_seeded');
+      if (!seedingFlag) {
+        await seedUsersToFirestore();
+        sessionStorage.setItem('firestore_seeded', 'true');
+        const newSnapshot = await getDocs(usersRef);
+        return newSnapshot.docs.map(doc => doc.data() as User);
+      }
+      return [];
     }
     return snapshot.docs.map(doc => doc.data() as User);
 }
 
 /**
  * Verifies user login against Firebase Auth and retrieves user data from Firestore.
+ * This function now first finds the user in Firestore to get their email, then attempts to sign in.
  * @param nikOrUsername The user's NIK or username.
  * @param password The user's password.
  * @returns {Promise<Omit<User, 'password'> | null>} The user object without the password, or null if login fails.
@@ -135,22 +143,28 @@ export async function verifyLogin(nikOrUsername: string, password: string): Prom
     );
 
     if (!userDetail) {
-        return null; // User not found in Firestore details
+        console.error("Login failed: User details not found in Firestore for input:", nikOrUsername);
+        return null;
     }
     
     try {
         const email = createEmail(userDetail.username);
-        // Try to sign in with Firebase Auth
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         
-        // If sign-in is successful, return the user details from Firestore
-        const { password, ...userWithoutPassword } = userDetail;
-        return { ...userWithoutPassword, id: userCredential.user.uid }; // Return with the correct Firebase UID
+        // On successful auth, refetch the details to ensure we have the right ones
+        const loggedInUserDetails = await getCurrentUserDetails(userCredential.user.uid);
+        if (loggedInUserDetails) {
+            return loggedInUserDetails;
+        } else {
+            console.error("Login failed: Auth successful but no user details in Firestore for UID:", userCredential.user.uid);
+            return null;
+        }
     } catch (error) {
         console.error("Firebase login failed:", error);
-        return null; // Auth failed
+        return null;
     }
 }
+
 
 export async function addUser(userData: Omit<User, 'id' | 'password'> & { password?: string }): Promise<User> {
     if (!userData.password) {
@@ -202,15 +216,12 @@ export async function changePassword(userId: string, oldPassword: string, newPas
     }
     
     try {
-        // Firebase does not have a direct "change password with old password" method on the client.
-        // The common flow is to re-authenticate first to prove identity.
         const email = currentUser.email;
         if (!email) {
             return { success: false, message: 'User email not found.' };
         }
         await signInWithEmailAndPassword(auth, email, oldPassword);
         
-        // If re-authentication is successful, update the password.
         await updatePassword(currentUser, newPassword);
         return { success: true, message: 'Password updated successfully.' };
 
@@ -235,7 +246,6 @@ export async function getCurrentUserDetails(uid: string): Promise<Omit<User, 'pa
 
     if (docSnap.exists()) {
         const data = docSnap.data();
-        // Ensure the returned object has the 'id' field from the document ID
         return { ...data, id: docSnap.id } as Omit<User, 'password'>;
     } else {
         return null;

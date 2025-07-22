@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { verifyLogin } from '@/lib/auth';
+import { verifyLogin, seedUsersToFirestore } from '@/lib/auth';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
 import Image from 'next/image';
 
@@ -22,10 +22,14 @@ export default function LoginPage() {
   const [nik, setNik] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isSeeding, setIsSeeding] = useState(false);
 
   useEffect(() => {
     if (!isAuthLoading && user) {
-      router.replace(getDefaultRouteForUser(user));
+      const targetRoute = getDefaultRouteForUser(user);
+      if(window.location.pathname !== targetRoute) {
+        router.replace(targetRoute);
+      }
     }
   }, [user, isAuthLoading, router]);
 
@@ -41,9 +45,8 @@ export default function LoginPage() {
                 title: 'Login Berhasil',
                 description: `Selamat datang, ${loggedInUser.username}!`,
             });
-            // AuthProvider will detect the new user state and redirect automatically.
-            // We can force a reload to ensure all states are fresh.
-            window.location.href = getDefaultRouteForUser(loggedInUser);
+            // AuthProvider will detect change and redirect.
+            // No manual redirect needed here to avoid race conditions.
         } else {
             toast({
                 variant: 'destructive',
@@ -60,6 +63,20 @@ export default function LoginPage() {
         });
     } finally {
         setIsLoggingIn(false);
+    }
+  };
+
+  const handleSeed = async () => {
+    setIsSeeding(true);
+    toast({ title: 'Proses Inisialisasi', description: 'Menyiapkan data pengguna awal ke database...' });
+    try {
+      await seedUsersToFirestore();
+      toast({ title: 'Berhasil', description: 'Database telah diinisialisasi. Silakan coba login.' });
+    } catch (e) {
+      console.error(e);
+      toast({ variant: 'destructive', title: 'Error', description: 'Gagal melakukan inisialisasi database.' });
+    } finally {
+      setIsSeeding(false);
     }
   };
   
@@ -90,7 +107,7 @@ export default function LoginPage() {
                 required
                 value={nik}
                 onChange={(e) => setNik(e.target.value)}
-                disabled={isLoggingIn}
+                disabled={isLoggingIn || isSeeding}
                 />
             </div>
             <div className="space-y-2">
@@ -102,18 +119,22 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoggingIn}
+                disabled={isLoggingIn || isSeeding}
                 />
             </div>
             </CardContent>
-            <CardFooter>
-            <Button type="submit" className="w-full" disabled={isLoggingIn}>
+            <CardFooter className="flex-col gap-2">
+            <Button type="submit" className="w-full" disabled={isLoggingIn || isSeeding}>
                 {isLoggingIn ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                 <LogIn className="mr-2 h-4 w-4" />
                 )}
                 Login
+            </Button>
+            <Button type="button" variant="link" className="text-xs text-muted-foreground" onClick={handleSeed} disabled={isLoggingIn || isSeeding}>
+              {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              (Jika login gagal, klik di sini untuk inisialisasi database)
             </Button>
             </CardFooter>
         </form>
