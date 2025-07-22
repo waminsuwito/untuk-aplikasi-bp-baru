@@ -60,7 +60,7 @@ const createEmail = (username: string) => `${username.replace(/\s+/g, '_').toLow
 
 /**
  * Seeds the Firestore database with the initial user list.
- * This should be called once from a manual trigger.
+ * This should be called once from a manual trigger on the login page.
  */
 export async function seedUsersToFirestore() {
   const usersRef = collection(firestore, 'users');
@@ -243,5 +243,3 @@ export async function getCurrentUserDetails(uid: string): Promise<Omit<User, 'pa
         return null;
     }
 }
-
-    
