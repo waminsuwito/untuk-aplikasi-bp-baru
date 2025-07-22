@@ -40,12 +40,12 @@ export default function LoginPage() {
         const loggedInUser = await verifyLogin(nik, password);
         
         if (loggedInUser) {
+            // The AuthProvider will handle the redirect on user state change.
+            // We just need to show a toast.
             toast({
                 title: 'Login Berhasil',
                 description: `Selamat datang, ${loggedInUser.username}!`,
             });
-            // AuthProvider will detect change and redirect.
-            // No manual redirect needed here to avoid race conditions.
         } else {
             toast({
                 variant: 'destructive',
@@ -70,14 +70,10 @@ export default function LoginPage() {
     toast({ title: 'Proses Inisialisasi', description: 'Menyiapkan data pengguna awal ke database...' });
     try {
       const result = await seedUsersToFirestore();
-      if (result.success) {
-        toast({ title: 'Berhasil', description: result.message });
-      } else {
-        toast({ title: 'Info', description: result.message });
-      }
-    } catch (e) {
+      toast({ title: 'Selesai', description: result.message });
+    } catch (e: any) {
       console.error(e);
-      toast({ variant: 'destructive', title: 'Error', description: 'Gagal melakukan inisialisasi database.' });
+      toast({ variant: 'destructive', title: 'Error', description: `Gagal melakukan inisialisasi: ${e.message}` });
     } finally {
       setIsSeeding(false);
     }
@@ -145,5 +141,3 @@ export default function LoginPage() {
     </main>
   );
 }
-
-    

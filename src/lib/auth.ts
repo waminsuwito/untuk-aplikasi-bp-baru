@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { type User, type Jabatan, userLocations, jabatanOptions } from '@/lib/types';
@@ -55,6 +56,7 @@ const initialUsers: User[] = [
   { id: 'test-tukang_las', username: 'test_tukang_las', password: '1', jabatan: 'TUKANG LAS', location: 'BP PEKANBARU', nik: 'T-TL' }
 ];
 
+
 // Helper to create a valid email from a username
 const createEmail = (username: string) => `${username.replace(/\s+/g, '_').toLowerCase()}@farika-perkasa.local`;
 
@@ -64,17 +66,15 @@ const createEmail = (username: string) => `${username.replace(/\s+/g, '_').toLow
  */
 export async function seedUsersToFirestore() {
   const usersRef = collection(firestore, 'users');
-  const q = query(usersRef, limit(1));
-  const existingUsersSnapshot = await getDocs(q);
+  const existingUsersSnapshot = await getDocs(usersRef);
 
   if (!existingUsersSnapshot.empty) {
     const message = "Database 'users' sudah berisi data. Proses inisialisasi dilewati.";
     console.log(message);
-    return { success: false, message };
+    return { success: true, message };
   }
   
   console.log("Memulai proses inisialisasi database...");
-  const batch = writeBatch(firestore);
   let successCount = 0;
   let failCount = 0;
 
@@ -88,9 +88,9 @@ export async function seedUsersToFirestore() {
       // Prepare user details for Firestore
       const userDocRef = doc(firestore, 'users', authUid);
       const { password, ...userDataForFirestore } = user; // Exclude password from Firestore document
-      batch.set(userDocRef, { ...userDataForFirestore, id: authUid });
+      await setDoc(userDocRef, { ...userDataForFirestore, id: authUid });
 
-      console.log(`Pengguna ${user.username} disiapkan untuk inisialisasi.`);
+      console.log(`Pengguna ${user.username} berhasil diinisialisasi.`);
       successCount++;
     } catch (error: any) {
       failCount++;
@@ -103,7 +103,6 @@ export async function seedUsersToFirestore() {
     }
   }
 
-  await batch.commit();
   const finalMessage = `Inisialisasi selesai. Berhasil: ${successCount}, Gagal: ${failCount}.`;
   console.log(finalMessage);
   return { success: true, message: finalMessage };
@@ -146,18 +145,20 @@ export async function verifyLogin(nikOrUsername: string, password: string): Prom
         
         // On successful auth, refetch the details to ensure we have the right ones
         const loggedInUserDetails = await getCurrentUserDetails(userCredential.user.uid);
+        
         if (loggedInUserDetails) {
             return loggedInUserDetails;
-        } else {
-            console.error("Login Gagal: Auth berhasil tapi tidak ada detail pengguna di Firestore untuk UID:", userCredential.user.uid);
-            await signOut(auth); // Sign out if data is inconsistent
-            return null;
         }
+        
+        console.error("Login Gagal: Auth berhasil tapi tidak ada detail pengguna di Firestore untuk UID:", userCredential.user.uid);
+        await signOut(auth); // Sign out if data is inconsistent
+        return null;
     } catch (error) {
         console.error("Firebase login gagal:", error);
         return null;
     }
 }
+
 
 export async function addUser(userData: Omit<User, 'id' | 'password'> & { password?: string }): Promise<User> {
     if (!userData.password) {

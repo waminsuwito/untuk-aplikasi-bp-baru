@@ -66,8 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await firebaseLogout();
-    setUser(null);
-    // Use window.location to force a reload and clear all state
+    // The onAuthStateChanged listener will handle setting user to null.
+    // We then rely on the useEffect above to redirect.
+    // A hard reload can also work to ensure all state is cleared.
     window.location.href = '/';
   };
 
