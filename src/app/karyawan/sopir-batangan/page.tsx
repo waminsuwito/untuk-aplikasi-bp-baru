@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
@@ -12,48 +12,19 @@ import { getUsers } from '@/lib/auth';
 import { Users, Trash2, PlusCircle, Inbox } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { firestore } from '@/lib/firebase';
+import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 
-const VEHICLES_STORAGE_KEY_PREFIX = 'app-vehicles-';
-const ASSIGNMENTS_STORAGE_KEY_PREFIX = 'app-assignments-';
-
-const getAssignments = (location: UserLocation): Assignment[] => {
-  try {
-    const key = `${ASSIGNMENTS_STORAGE_KEY_PREFIX}${location}`;
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : [];
-  } catch (e) {
-    return [];
-  }
+const getAssignmentsCollectionRef = (location: UserLocation) => {
+    return collection(firestore, `locations/${location}/assignments`);
 };
 
-const saveAssignments = (location: UserLocation, assignments: Assignment[]) => {
-  try {
-    const key = `${ASSIGNMENTS_STORAGE_KEY_PREFIX}${location}`;
-    localStorage.setItem(key, JSON.stringify(assignments));
-  } catch (e) {
-    console.error("Failed to save assignments", e);
-  }
+const getVehiclesCollectionRef = (location: UserLocation) => {
+    return collection(firestore, `locations/${location}/vehicles`);
 };
 
-const getVehicles = (location: UserLocation): Vehicle[] => {
-    try {
-        const key = `${VEHICLES_STORAGE_KEY_PREFIX}${location}`;
-        const stored = localStorage.getItem(key);
-        return stored ? JSON.parse(stored) : [];
-    } catch (e) { return []; }
-};
 
 export default function SopirBatanganPage() {
   const { user } = useAuth();
@@ -66,19 +37,30 @@ export default function SopirBatanganPage() {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
 
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     if (user?.location) {
-      const users = getUsers().filter(u => u.location === user.location && u.jabatan !== 'SUPER ADMIN');
-      const vehicles = getVehicles(user.location);
-      const savedAssignments = getAssignments(user.location);
+      const users = await getUsers();
+      const filteredUsers = users.filter(u => u.location === user.location && u.jabatan !== 'SUPER ADMIN');
+      
+      const vehiclesRef = getVehiclesCollectionRef(user.location);
+      const vehiclesSnapshot = await getDocs(vehiclesRef);
+      const vehicles = vehiclesSnapshot.docs.map(doc => doc.data() as Vehicle);
 
-      setAllUsers(users);
+      const assignmentsRef = getAssignmentsCollectionRef(user.location);
+      const assignmentsSnapshot = await getDocs(assignmentsRef);
+      const savedAssignments = assignmentsSnapshot.docs.map(doc => doc.data() as Assignment);
+
+      setAllUsers(filteredUsers);
       setAllVehicles(vehicles);
       setAssignments(savedAssignments);
     }
   }, [user]);
 
-  const handleCreateAssignment = () => {
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleCreateAssignment = async () => {
     if (!selectedUserId || !selectedVehicleId || !user?.location) {
       toast({ variant: 'destructive', title: 'Data Tidak Lengkap', description: 'Silakan pilih sopir dan kendaraan.' });
       return;
@@ -113,31 +95,43 @@ export default function SopirBatanganPage() {
       return;
     }
 
+    const assignmentId = `${selectedUserId}-${selectedVehicleId}`;
     const newAssignment: Assignment = {
-      id: `${selectedUserId}-${selectedVehicleId}`,
+      id: assignmentId,
       userId: selectedUserId,
       username: selectedUser.username,
       vehicleId: selectedVehicleId,
       vehicleNomorPolisi: selectedVehicle.nomorPolisi,
     };
 
-    const updatedAssignments = [...assignments, newAssignment];
-    setAssignments(updatedAssignments);
-    saveAssignments(user.location, updatedAssignments);
+    try {
+        const assignmentsRef = getAssignmentsCollectionRef(user.location);
+        await setDoc(doc(assignmentsRef, assignmentId), newAssignment);
 
-    toast({ title: 'Berhasil', description: `Sopir ${selectedUser.username} telah ditugaskan ke ${selectedVehicle.nomorPolisi}.` });
-
-    setSelectedUserId('');
-    setSelectedVehicleId('');
+        toast({ title: 'Berhasil', description: `Sopir ${selectedUser.username} telah ditugaskan ke ${selectedVehicle.nomorPolisi}.` });
+        
+        setSelectedUserId('');
+        setSelectedVehicleId('');
+        await loadData(); // Reload data
+    } catch (error) {
+        console.error("Failed to create assignment:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Gagal menyimpan penugasan ke database.' });
+    }
   };
 
-  const handleDeleteAssignment = (assignmentId: string) => {
+  const handleDeleteAssignment = async (assignmentId: string) => {
     if (!user?.location) return;
 
-    const updatedAssignments = assignments.filter(a => a.id !== assignmentId);
-    setAssignments(updatedAssignments);
-    saveAssignments(user.location, updatedAssignments);
-    toast({ variant: 'destructive', title: 'Penugasan Dihapus', description: 'Sopir telah dilepaskan dari kendaraan.' });
+    try {
+        const assignmentsRef = getAssignmentsCollectionRef(user.location);
+        await deleteDoc(doc(assignmentsRef, assignmentId));
+
+        toast({ variant: 'destructive', title: 'Penugasan Dihapus', description: 'Sopir telah dilepaskan dari kendaraan.' });
+        await loadData(); // Reload data
+    } catch (error) {
+        console.error("Failed to delete assignment:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Gagal menghapus penugasan dari database.' });
+    }
   };
   
   return (

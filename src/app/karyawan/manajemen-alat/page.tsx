@@ -1,43 +1,24 @@
 
-
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Printer, CheckSquare, XSquare, CheckCircle2, AlertTriangle, Wrench, Package, Building, Eye, ShieldAlert, FileWarning, UserX } from 'lucide-react';
+import { Printer, CheckCircle2, AlertTriangle, Wrench, Package, Building, Eye, ShieldAlert, FileWarning, UserX } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { type TruckChecklistReport, type TruckChecklistItem, type UserLocation, type Vehicle } from '@/lib/types';
+import { type TruckChecklistReport, type UserLocation, type Vehicle, type Assignment } from '@/lib/types';
 import { printElement } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { getUsers } from '@/lib/auth';
 import { format } from 'date-fns';
 import { useAuth } from '@/context/auth-provider';
 import type { User } from '@/lib/types';
+import { firestore } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
-
-const VEHICLES_STORAGE_KEY_PREFIX = 'app-vehicles-';
-const TM_CHECKLIST_STORAGE_KEY = 'app-tm-checklists';
-const LOADER_CHECKLIST_STORAGE_KEY = 'app-loader-checklists';
-const ASSIGNMENTS_STORAGE_KEY_PREFIX = 'app-assignments-';
-
-
-interface Assignment {
-  id: string;
-  userId: string;
-  username: string;
-  vehicleId: string;
-  vehicleNomorPolisi: string;
-}
 
 interface ProcessedVehicle extends Vehicle {
     operator?: {
@@ -46,34 +27,11 @@ interface ProcessedVehicle extends Vehicle {
     };
 }
 
-const getAssignments = (location: UserLocation): Assignment[] => {
-  try {
-    const key = `${ASSIGNMENTS_STORAGE_KEY_PREFIX}${location}`;
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : [];
-  } catch (e) {
-    return [];
-  }
-};
-
-
-const getVehiclesForLocation = (location: UserLocation): Vehicle[] => {
-    try {
-        const key = `${VEHICLES_STORAGE_KEY_PREFIX}${location}`;
-        const storedVehicles = localStorage.getItem(key);
-        return storedVehicles ? JSON.parse(storedVehicles) : [];
-    } catch (error) {
-        console.error(`Failed to load vehicles for ${location}:`, error);
-        return [];
-    }
-}
-
 interface DialogInfo {
   title: string;
   vehicles?: ProcessedVehicle[];
   users?: User[];
 }
-
 
 const StatCard = ({ title, value, description, icon: Icon, onClick, clickable, colorClass, asLink, href }: { title: string; value: string | number; description: string; icon: React.ElementType, onClick?: () => void, clickable?: boolean, colorClass?: string, asLink?: boolean, href?: string }) => {
     const cardContent = (
@@ -105,36 +63,50 @@ export default function ManajemenAlatPage() {
   const [checklistReports, setChecklistReports] = useState<TruckChecklistReport[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
 
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     if (!user?.location) return;
 
-    const loadData = () => {
-        const vehicles = getVehiclesForLocation(user.location as UserLocation);
+    try {
+        const vehiclesRef = collection(firestore, `locations/${user.location}/vehicles`);
+        const vehiclesSnapshot = await getDocs(vehiclesRef);
+        const vehicles = vehiclesSnapshot.docs.map(doc => doc.data() as Vehicle);
         setAllVehicles(vehicles);
 
-        const users = getUsers().map(({ password, ...rest }) => rest);
-        setAllUsers(users);
+        const users = await getUsers(); // This function now gets all users from Firestore
+        const filteredUsers = users.map(({ password, ...rest }) => rest);
+        setAllUsers(filteredUsers);
+        
+        const assignmentsRef = collection(firestore, `locations/${user.location}/assignments`);
+        const assignmentsSnapshot = await getDocs(assignmentsRef);
+        const fetchedAssignments = assignmentsSnapshot.docs.map(doc => doc.data() as Assignment);
+        setAssignments(fetchedAssignments);
 
-        const assignments = getAssignments(user.location as UserLocation);
-        setAssignments(assignments);
+        const tmChecklistsRef = collection(firestore, 'tm-checklists');
+        const loaderChecklistsRef = collection(firestore, 'loader-checklists');
 
-        const tmChecklistsStr = localStorage.getItem(TM_CHECKLIST_STORAGE_KEY) || '[]';
-        const loaderChecklistsStr = localStorage.getItem(LOADER_CHECKLIST_STORAGE_KEY) || '[]';
-        const tmReports: TruckChecklistReport[] = JSON.parse(tmChecklistsStr);
-        const loaderReports: TruckChecklistReport[] = JSON.parse(loaderChecklistsStr);
+        const [tmSnapshot, loaderSnapshot] = await Promise.all([getDocs(tmChecklistsRef), getDocs(loaderChecklistsRef)]);
+
+        const tmReports = tmSnapshot.docs.map(doc => doc.data() as TruckChecklistReport);
+        const loaderReports = loaderSnapshot.docs.map(doc => doc.data() as TruckChecklistReport);
+        
         const todayStr = format(new Date(), 'yyyy-MM-dd');
-        const todaysReports = [...tmReports, ...loaderReports].filter(r => r.id.includes(todayStr));
+        
+        const todaysReports = [...tmReports, ...loaderReports].filter(r => 
+            r.id.includes(todayStr) && r.location === user.location
+        );
         setChecklistReports(todaysReports);
+
+    } catch (error) {
+        console.error("Failed to load management data:", error);
     }
-    
-    loadData();
-
-    // Listen for storage changes to update the view in real-time
-    const handleStorageChange = () => loadData();
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-
   }, [user]);
+
+  useEffect(() => {
+    loadData();
+    // No need for a storage event listener anymore since we are using Firebase,
+    // but a more advanced implementation would use onSnapshot for real-time updates.
+    // For now, a manual refresh or interval would be needed to see changes from other clients.
+  }, [loadData]);
   
   const processedVehicles = useMemo(() => {
     if (!user?.location) return [];
@@ -314,7 +286,7 @@ export default function ManajemenAlatPage() {
         <StatCard title="Alat Baik, Belum Ada Oprator/Driver" value={filteredData.alatBaikNoOperator.length} description="Klik untuk melihat daftar" icon={UserX} colorClass="text-blue-600" clickable onClick={() => handleShowDialog('Alat Baik, Belum Ada Operator', filteredData.alatBaikNoOperator)} />
         <StatCard title="Perlu Perhatian" value={filteredData.perluPerhatian.length} description="Klik untuk melihat daftar" icon={AlertTriangle} colorClass="text-amber-500" clickable onClick={() => handleShowDialog('Daftar Alat Perlu Perhatian', filteredData.perluPerhatian)} />
         <StatCard title="Alat Rusak" value={filteredData.alatRusak.length} description="Klik untuk melihat daftar" icon={Wrench} colorClass="text-destructive" clickable onClick={() => handleShowDialog('Daftar Alat Rusak', filteredData.alatRusak)} />
-        <StatCard title="Belum Checklist" value={filteredData.belumChecklist.length} description="Klik untuk melihat daftar" icon={FileWarning} colorClass="text-sky-600" clickable onClick={() => handleShowDialog('Operator Belum Checklist', [], filteredData.belumChecklist)} />
+        <StatCard title="Belum Checklist" value={filteredData.belumChecklist.length} description="Klik untuk melihat daftar" icon={FileWarning} colorClass="text-sky-600" clickable onClick={() => handleShowDialog('Operator Belum Checklist', [], filteredData.belumChecklist as User[])} />
         <StatCard 
             title="Alat Rusak Berat" 
             value={filteredData.alatRusakBerat.length} 

@@ -1,7 +1,5 @@
-'use client';
-
-import { EditableVehicleList } from '@/components/karyawan/editable-vehicle-list';
-
-export default function ManajemenPeralatanPage() {
-  return <EditableVehicleList />;
+// This file is a duplicate and is intentionally left blank to resolve build errors.
+// The correct logic is in src/app/karyawan/manajemen-peralatan/page.tsx.
+export default function DeprecatedPage() {
+  return null;
 }
