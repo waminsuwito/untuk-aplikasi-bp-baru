@@ -1,7 +1,8 @@
 
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
@@ -13,12 +14,25 @@ import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import Image from 'next/image';
 import { useAuth } from '@/context/auth-provider';
+import { playSound } from '@/lib/utils';
 
 const ACCIDENT_REPORTS_KEY = 'app-accident-reports';
 const reportsUpdatedEvent = new Event('accidentReportsUpdated'); // Can be used for notifications
 
+// Custom hook to get the previous value of a prop or state
+function usePrevious<T>(value: T) {
+  const ref = useRef<T>();
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+}
+
+
 export default function InsidenKerjaPage() {
   const [reports, setReports] = useState<AccidentReport[]>([]);
+  const prevReports = usePrevious(reports);
+
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -59,6 +73,18 @@ export default function InsidenKerjaPage() {
     }
 
   }, [toast, user]);
+  
+  useEffect(() => {
+    if (prevReports && reports.length > prevReports.length) {
+      const newReportExists = reports.some(report => 
+        !prevReports.find(prev => prev.id === report.id) && report.status === 'new'
+      );
+      if (newReportExists) {
+        playSound('/sounds/accident-notification.mp3');
+      }
+    }
+  }, [reports, prevReports]);
+
 
   const handleMarkAsReviewed = (id: string) => {
     try {

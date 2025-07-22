@@ -44,7 +44,7 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
 
 /**
  * Plays a sound file from the public directory.
- * @param src The path to the sound file (e.g., '/notification.mp3').
+ * @param src The path to the sound file (e.g., '/sounds/notification.mp3').
  */
 export function playSound(src: string): void {
   if (typeof window !== 'undefined') {
