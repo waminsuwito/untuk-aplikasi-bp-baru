@@ -2,6 +2,9 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: "AIzaSyCRB3RQggapz4cumV0Lt89u7K3lXFAz2UY",
+  },
   output: 'export',
   /* config options here */
   typescript: {
