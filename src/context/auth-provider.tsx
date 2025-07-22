@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -6,6 +7,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { type User } from '@/lib/types';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { getCurrentUserDetails, firebaseLogout } from '@/lib/auth';
 
 interface AuthContextType {
   user: Omit<User, 'password'> | null;
@@ -22,21 +26,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('app-user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // User is signed in, get details from Firestore
+        const userDetails = await getCurrentUserDetails(firebaseUser.uid);
+        if (userDetails) {
+          setUser(userDetails);
+        } else {
+          // User exists in Auth but not in Firestore, something is wrong. Log them out.
+          await firebaseLogout();
+          setUser(null);
+        }
+      } else {
+        // User is signed out
+        setUser(null);
       }
-    } catch (error) {
-      console.error("Failed to parse user from localStorage", error);
-    } finally {
       setIsLoading(false);
-    }
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
+
 
   useEffect(() => {
     if (isLoading) {
-      return; // Don't do anything until the user state is resolved
+      return; // Don't do anything until the auth state is resolved
     }
 
     const isLoginPage = pathname === '/';
@@ -50,13 +65,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, isLoading, pathname, router]);
 
-  const logout = () => {
-    localStorage.removeItem('app-user');
+  const logout = async () => {
+    await firebaseLogout();
     setUser(null);
-    window.location.href = '/'; // Force a full reload to the login page
+    // Use window.location to force a reload and clear all state
+    window.location.href = '/';
   };
 
-  // Show a loader while the initial auth check and redirection logic is running
   const isAuthCheckRunning = isLoading || (!user && pathname !== '/') || (user && pathname === '/');
   
   if (isAuthCheckRunning) {

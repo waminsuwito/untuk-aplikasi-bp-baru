@@ -2,7 +2,10 @@
 
 'use client';
 
-import { type User } from '@/lib/types';
+import { type User, type Jabatan, userLocations, jabatanOptions } from '@/lib/types';
+import { auth, firestore } from '@/lib/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut } from 'firebase/auth';
+import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc } from 'firebase/firestore';
 
 // The key used to store users in localStorage.
 const USERS_STORAGE_KEY = 'app-users';
@@ -56,103 +59,183 @@ const initialUsers: User[] = [
   { id: 'test-tukang_las', username: 'test_tukang_las', password: '1', jabatan: 'TUKANG LAS', location: 'BP PEKANBARU', nik: 'T-TL' }
 ];
 
+// Helper to create a valid email from a username
+const createEmail = (username: string) => `${username.replace(/\s+/g, '_').toLowerCase()}@farika-perkasa.local`;
 
 /**
- * Retrieves the list of users from localStorage.
- * If no users are found, it seeds localStorage with an initial list.
- * This function should only be called on the client side.
- * @returns {User[]} An array of user objects.
+ * Seeds the Firestore database with the initial user list.
+ * This should be called once.
  */
-export function getUsers(): User[] {
-    if (typeof window === 'undefined') {
-        return [];
-    }
+export async function seedUsersToFirestore() {
+  const usersRef = collection(firestore, 'users');
+  const existingUsersSnapshot = await getDocs(usersRef);
+
+  if (!existingUsersSnapshot.empty) {
+    console.log("Firestore 'users' collection already has data. Seeding skipped.");
+    return;
+  }
+
+  console.log("Seeding users to Firestore...");
+  const promises = initialUsers.map(async (user) => {
     try {
-        const storedUsers = window.localStorage.getItem(USERS_STORAGE_KEY);
-        if (storedUsers) {
-            return JSON.parse(storedUsers);
-        } else {
-            // Seed the initial users into localStorage if it's empty
-            window.localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialUsers));
-            return initialUsers;
-        }
-    } catch (error) {
-        console.error('Failed to access users from localStorage:', error);
-        return [];
+      const email = createEmail(user.username);
+      // Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, user.password || 'defaultPassword123');
+      const authUid = userCredential.user.uid;
+
+      // Save user details in Firestore
+      const userDocRef = doc(firestore, 'users', authUid);
+      await setDoc(userDocRef, {
+        id: authUid, // Use Firebase Auth UID as the document ID
+        username: user.username,
+        jabatan: user.jabatan,
+        location: user.location,
+        nik: user.nik,
+      });
+    } catch (error: any) {
+      // Ignore "email-already-in-use" as it might happen on re-runs
+      if (error.code !== 'auth/email-already-in-use') {
+        console.error(`Failed to seed user ${user.username}:`, error);
+      }
     }
+  });
+
+  await Promise.all(promises);
+  console.log("Seeding complete.");
 }
 
 /**
- * Saves the provided array of users to localStorage.
- * This function should only be called on the client side.
- * @param {User[]} users The array of users to save.
+ * Retrieves the list of users from Firestore.
+ * @returns {Promise<User[]>} An array of user objects.
  */
-function saveUsers(users: User[]): void {
-    if (typeof window === 'undefined') return;
-    try {
-        window.localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-    } catch (error) {
-        console.error('Failed to save users to localStorage:', error);
+export async function getUsers(): Promise<User[]> {
+    const usersRef = collection(firestore, 'users');
+    const snapshot = await getDocs(usersRef);
+    if (snapshot.empty) {
+      await seedUsersToFirestore();
+      const newSnapshot = await getDocs(usersRef);
+      return newSnapshot.docs.map(doc => doc.data() as User);
     }
+    return snapshot.docs.map(doc => doc.data() as User);
 }
 
-
-export function verifyLogin(usernameOrNik: string, password: string): Omit<User, 'password'> | null {
-    const users = getUsers();
-    const lowerCaseUsernameOrNik = usernameOrNik.toLowerCase();
-
-    const user = users.find(
-        (u) =>
-            (u.username.toLowerCase() === lowerCaseUsernameOrNik || (u.nik && u.nik.toLowerCase() === lowerCaseUsernameOrNik)) &&
-            u.password === password
+/**
+ * Verifies user login against Firebase Auth and retrieves user data from Firestore.
+ * @param nikOrUsername The user's NIK or username.
+ * @param password The user's password.
+ * @returns {Promise<Omit<User, 'password'> | null>} The user object without the password, or null if login fails.
+ */
+export async function verifyLogin(nikOrUsername: string, password: string): Promise<Omit<User, 'password'> | null> {
+    const allUsers = await getUsers();
+    const lowerCaseInput = nikOrUsername.toLowerCase();
+    
+    // Find the user in our Firestore user list
+    const userDetail = allUsers.find(
+        u => (u.username.toLowerCase() === lowerCaseInput || (u.nik && u.nik.toLowerCase() === lowerCaseInput))
     );
 
-    if (user) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { password, ...userWithoutPassword } = user;
-        return userWithoutPassword;
-    } else {
-        return null;
+    if (!userDetail) {
+        return null; // User not found in Firestore details
+    }
+    
+    try {
+        const email = createEmail(userDetail.username);
+        // Try to sign in with Firebase Auth
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        // If sign-in is successful, return the user details from Firestore
+        const { password, ...userWithoutPassword } = userDetail;
+        return { ...userWithoutPassword, id: userCredential.user.uid }; // Return with the correct Firebase UID
+    } catch (error) {
+        console.error("Firebase login failed:", error);
+        return null; // Auth failed
     }
 }
 
-export function addUser(userData: Omit<User, 'id'>): User {
-    const users = getUsers();
-    const newUser: User = { ...userData, id: new Date().toISOString() + Math.random().toString(36).substring(2) };
-    const updatedUsers = [...users, newUser];
-    saveUsers(updatedUsers);
+export async function addUser(userData: Omit<User, 'id' | 'password'> & { password?: string }): Promise<User> {
+    if (!userData.password) {
+        throw new Error("Password is required to create a new user.");
+    }
+    
+    const email = createEmail(userData.username);
+    const userCredential = await createUserWithEmailAndPassword(auth, email, userData.password);
+    const authUid = userCredential.user.uid;
+
+    const newUser: User = {
+        id: authUid,
+        username: userData.username,
+        jabatan: userData.jabatan,
+        location: userData.location,
+        nik: userData.nik,
+    };
+    
+    const userDocRef = doc(firestore, 'users', authUid);
+    await setDoc(userDocRef, newUser);
+    
     return newUser;
 }
 
-export function updateUser(userId: string, userData: Partial<Omit<User, 'id'>>): void {
-    const users = getUsers();
-    const updatedUsers = users.map((u) =>
-        u.id === userId ? { ...u, ...userData } : u
-    );
-    saveUsers(updatedUsers);
+export async function updateUser(userId: string, userData: Partial<Omit<User, 'id' | 'password'>>): Promise<void> {
+    const userDocRef = doc(firestore, 'users', userId);
+    await updateDoc(userDocRef, userData);
+
+    // Note: Changing username/email in Firebase Auth requires re-authentication and is more complex.
+    // For this app, we'll only update Firestore data. Password update is a separate function.
 }
 
-export function deleteUser(userId: string): void {
-    const users = getUsers();
-    const updatedUsers = users.filter((u) => u.id !== userId);
-    saveUsers(updatedUsers);
+
+export async function deleteUser(userId: string): Promise<void> {
+    // This is a complex operation. Deleting a Firebase Auth user is irreversible and
+    // requires admin privileges, typically handled via a backend/cloud function.
+    // For a client-side only app, we will just delete the Firestore record.
+    const userDocRef = doc(firestore, 'users', userId);
+    await deleteDoc(userDocRef);
+    
+    // In a real app: You would call a cloud function here to delete the Auth user.
+    // e.g., `const deleteUserFn = httpsCallable(functions, 'deleteUser'); await deleteUserFn({ uid: userId });`
 }
 
-export function changePassword(userId: string, oldPassword: string, newPassword: string): { success: boolean; message: string } {
-    const users = getUsers();
-    const userIndex = users.findIndex((u) => u.id === userId);
-
-    if (userIndex === -1) {
-        return { success: false, message: 'User not found.' };
+export async function changePassword(userId: string, oldPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.uid !== userId) {
+        return { success: false, message: 'Authentication error. Please log in again.' };
     }
+    
+    try {
+        // Firebase does not have a direct "change password with old password" method on the client.
+        // The common flow is to re-authenticate first to prove identity.
+        const email = currentUser.email;
+        if (!email) {
+            return { success: false, message: 'User email not found.' };
+        }
+        await signInWithEmailAndPassword(auth, email, oldPassword);
+        
+        // If re-authentication is successful, update the password.
+        await updatePassword(currentUser, newPassword);
+        return { success: true, message: 'Password updated successfully.' };
 
-    const user = users[userIndex];
-    if (user.password !== oldPassword) {
-        return { success: false, message: 'Incorrect old password.' };
+    } catch (error: any) {
+        console.error("Password change failed:", error);
+        let message = 'An unknown error occurred.';
+        if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+            message = 'Password lama salah.';
+        }
+        return { success: false, message };
     }
+}
 
-    users[userIndex].password = newPassword;
-    saveUsers(users);
+export async function firebaseLogout() {
+  await signOut(auth);
+}
 
-    return { success: true, message: 'Password updated successfully.' };
+// Function to get current user detail from firestore
+export async function getCurrentUserDetails(uid: string): Promise<Omit<User, 'password'> | null> {
+    const userDocRef = doc(firestore, 'users', uid);
+    const docSnap = await getDoc(userDocRef);
+
+    if (docSnap.exists()) {
+        return docSnap.data() as Omit<User, 'password'>;
+    } else {
+        return null;
+    }
 }

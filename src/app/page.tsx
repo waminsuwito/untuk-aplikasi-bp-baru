@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,9 +11,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { verifyLogin } from '@/lib/auth';
+import { verifyLogin, getCurrentUserDetails } from '@/lib/auth';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
 import Image from 'next/image';
+import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -28,32 +30,47 @@ export default function LoginPage() {
     }
   }, [user, isAuthLoading, router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
     
-    setTimeout(() => {
-        const loggedInUser = verifyLogin(nik, password);
+    try {
+        const loggedInUser = await verifyLogin(nik, password);
         
-        if (loggedInUser) {
-            localStorage.setItem('app-user', JSON.stringify(loggedInUser));
-            toast({
-                title: 'Login Berhasil',
-                description: `Selamat datang, ${loggedInUser.username}!`,
-            });
-            window.location.href = getDefaultRouteForUser(loggedInUser);
+        if (loggedInUser && auth.currentUser) {
+            // Fetch full user details from firestore
+            const userDetails = await getCurrentUserDetails(auth.currentUser.uid);
+            if (userDetails) {
+                // Save complete user details to local storage for the session
+                localStorage.setItem('app-user', JSON.stringify(userDetails));
+                toast({
+                    title: 'Login Berhasil',
+                    description: `Selamat datang, ${userDetails.username}!`,
+                });
+                // Force a reload to trigger AuthProvider's redirection logic
+                window.location.href = getDefaultRouteForUser(userDetails);
+            } else {
+                 throw new Error("User details not found in database.");
+            }
         } else {
             toast({
                 variant: 'destructive',
                 title: 'Login Gagal',
                 description: 'NIK atau password yang Anda masukkan salah.',
             });
-            setIsLoggingIn(false);
         }
-    }, 500); // Simulate network delay
+    } catch (error) {
+        console.error("Login process error:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Login Gagal',
+            description: 'Terjadi kesalahan saat mencoba login.',
+        });
+    } finally {
+        setIsLoggingIn(false);
+    }
   };
   
-  // If auth is still loading or user is found, show a spinner to avoid content flash
   if (isAuthLoading || user) {
      return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -80,8 +97,7 @@ export default function LoginPage() {
                 placeholder="Masukkan NIK atau username Anda"
                 required
                 value={nik}
-                onChange={(e) => setNik(e.target.value.toUpperCase())}
-                style={{ textTransform: 'uppercase' }}
+                onChange={(e) => setNik(e.target.value)}
                 disabled={isLoggingIn}
                 />
             </div>
