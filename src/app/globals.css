@@ -179,17 +179,9 @@
       display: block !important;
   }
   
-  body > * {
-    display: none !important;
-  }
-  
-  /* Ensure the main print content container is visible */
-  #print-content, #print-content * {
+  #print-content {
     display: block !important;
     visibility: visible !important;
-  }
-   
-  #print-content {
     position: absolute;
     left: 0;
     top: 0;
