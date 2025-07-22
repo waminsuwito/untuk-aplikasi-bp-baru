@@ -1,0 +1,215 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 224 70% 4%;
+    --foreground: 210 40% 98%;
+    --card: 224 71% 10%;
+    --card-foreground: 210 40% 98%;
+    --popover: 224 70% 4%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 180 90% 45%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 180 90% 45% / 0.2;
+    --input: 217 33% 17%;
+    --ring: 180 90% 50%;
+    --radius: 0.75rem;
+
+    --chart-1: 180 90% 45%;
+    --chart-2: 0 84% 60%;
+    --chart-3: 45 93% 58%;
+    --chart-4: 260 85% 65%;
+    --chart-5: 330 85% 65%;
+  }
+
+  .dark {
+    --background: 224 70% 4%;
+    --foreground: 210 40% 98%;
+    --card: 224 71% 10%;
+    --card-foreground: 210 40% 98%;
+    --popover: 224 70% 4%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 180 90% 45%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 40%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 180 90% 45% / 0.2;
+    --input: 217 33% 17%;
+    --ring: 180 90% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    
+    background-color: hsl(var(--background));
+    background-image:
+      linear-gradient(hsl(var(--primary) / 0.1) 1px, transparent 1px),
+      linear-gradient(to right, hsl(var(--primary) / 0.1) 1px, hsl(var(--background)) 1px);
+    background-size: 2rem 2rem;
+  }
+  
+  h1, h2, h3, h4, h5, h6, .card-title {
+    text-shadow: 0 0 8px hsl(var(--primary) / 0.3);
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-card/60 backdrop-blur-xl border-primary/20;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    border-radius: inherit;
+    border: 1px solid transparent;
+    background: linear-gradient(120deg, hsl(var(--primary)/0.3), hsl(var(--primary)/0.1), hsl(var(--primary)/0.3)) border-box;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) padding-box, 
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  
+  .digital-display {
+    @apply bg-black/75 border-2 border-primary/50 p-4 rounded-lg text-center font-mono;
+    box-shadow: 0 0 10px hsl(var(--primary) / 0.5), inset 0 0 10px hsl(var(--primary) / 0.3);
+  }
+  .digital-display-value {
+    @apply text-5xl font-bold;
+    color: hsl(var(--primary));
+    text-shadow: 0 0 8px hsl(var(--primary)), 0 0 12px hsl(var(--primary));
+  }
+  .digital-display-unit {
+    @apply text-xl opacity-80;
+    color: hsl(var(--primary));
+  }
+}
+
+
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 8px hsl(var(--primary) / 0.7);
+  }
+  
+  .animation-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  .animation-glow {
+     animation: glow 1.5s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: .5;
+  }
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px -1px hsl(var(--primary) / 0.4), 0 0 8px -2px hsl(var(--primary) / 0.6);
+  }
+  to {
+    box-shadow: 0 0 8px 0px hsl(var(--primary) / 0.6), 0 0 16px 0px hsl(var(--primary) / 0.4);
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 15px hsl(var(--primary) / 0.8);
+  }
+}
+
+
+/* Print-specific styles */
+@media print {
+  body {
+    background-image: none !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Universal selector to override dark theme colors for print */
+  *, *::before, *::after {
+    background: transparent !important;
+    background-color: transparent !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    border-color: #dee2e6 !important; /* A light grey for borders */
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  .no-print, .no-print * {
+    display: none !important;
+  }
+  
+  .print-only {
+      display: block !important;
+  }
+  
+  body > * {
+    display: none !important;
+  }
+  
+  /* Ensure the main print content container is visible */
+  #print-content, #print-content * {
+    display: block !important;
+    visibility: visible !important;
+  }
+   
+  #print-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* Add watermark */
+  body::after {
+    content: "PT FARIKA RIAU PERKASA";
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-45deg);
+    font-size: 5rem;
+    font-weight: bold;
+    color: rgba(0, 0, 0, 0.08) !important;
+    z-index: -1;
+    pointer-events: none;
+    white-space: nowrap;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}

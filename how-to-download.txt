@@ -1,0 +1,11 @@
+
+This is a test file to help you download your project.
+
+How to Download Your Full Project:
+
+1. Look for an "Export" or "Download Code" button in the Firebase Studio interface. It's usually at the top right of the screen.
+2. When you click it, your browser should start downloading a .zip file.
+3. This .zip file will be saved to your computer's "Downloads" folder, NOT inside this Studio environment.
+4. If you cannot find the file in your "Downloads" folder, please check your browser's download history (usually by pressing Ctrl+J or Cmd+Shift+J) to see where the file was saved or if the download failed.
+
+If you can download THIS file by right-clicking on it and selecting "Download", but cannot download the full project, the issue might be with the project export process itself.
