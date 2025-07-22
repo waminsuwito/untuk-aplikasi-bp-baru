@@ -196,7 +196,7 @@ export default function OwnerDashboardPage() {
             </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              <SectionCard title="Pengecoran" icon={BarChart}>
                 <DataRow label="Schedule Cor" value={pengecoranStats.totalVolume} unit="M³" />
                 <DataRow label="Jumlah Lokasi Cor" value={pengecoranStats.jumlahLokasiCor} unit="Lokasi" />
@@ -252,5 +252,7 @@ export default function OwnerDashboardPage() {
     </div>
   );
 }
+
+    
 
     
