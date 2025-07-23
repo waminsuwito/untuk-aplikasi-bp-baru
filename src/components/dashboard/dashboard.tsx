@@ -467,49 +467,53 @@ export function Dashboard() {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-12 gap-4">
-          <div className="col-span-9">
-            <WeightDisplayPanel
-                aggregateWeight={aggregateWeight}
-                airWeight={airWeight}
-                semenWeight={semenWeight}
-                targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2}
-                targetAir={currentTargetWeights.air}
-                targetSemen={currentTargetWeights.semen}
-                disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
-            />
-          </div>
-          <div className="col-span-3">
-            <StatusPanel 
-              log={activityLog}
-              timerDisplay={timerDisplay}
-              mixingTime={mixingTime}
-              setMixingTime={setMixingTime}
+        <div className="col-span-9">
+          <WeightDisplayPanel
+              aggregateWeight={aggregateWeight}
+              airWeight={airWeight}
+              semenWeight={semenWeight}
+              targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2}
+              targetAir={currentTargetWeights.air}
+              targetSemen={currentTargetWeights.semen}
               disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
-              currentMixInfo={ operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete' ? {
-                current: currentMixNumber,
-                total: jobInfo.jumlahMixing
-              } : undefined}
-            />
-          </div>
+          />
+        </div>
+        <div className="col-span-3">
+          <StatusPanel 
+            log={activityLog}
+            timerDisplay={timerDisplay}
+            mixingTime={mixingTime}
+            setMixingTime={setMixingTime}
+            disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
+            currentMixInfo={ operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete' ? {
+              current: currentMixNumber,
+              total: jobInfo.jumlahMixing
+            } : undefined}
+          />
+        </div>
       </div>
       
-      <ControlPanel
-        powerOn={powerOn}
-        setPowerOn={handleSetPowerOn}
-        formulas={formulas}
-        operasiMode={operasiMode}
-        setOperasiMode={setOperasiMode}
-        handleProcessControl={handleProcessControl}
-        jobInfo={jobInfo}
-        setJobInfo={setJobInfo}
-        isManualProcessRunning={isManualProcessRunning}
-        isJobInfoLocked={isJobInfoLocked}
-        volumeWarning={volumeWarning}
-        scheduleStatusWarning={scheduleStatusWarning}
-        hasActiveSchedule={hasActiveSchedule}
-      />
+      <div>
+        <ControlPanel
+          powerOn={powerOn}
+          setPowerOn={handleSetPowerOn}
+          formulas={formulas}
+          operasiMode={operasiMode}
+          setOperasiMode={setOperasiMode}
+          handleProcessControl={handleProcessControl}
+          jobInfo={jobInfo}
+          setJobInfo={setJobInfo}
+          isManualProcessRunning={isManualProcessRunning}
+          isJobInfoLocked={isJobInfoLocked}
+          volumeWarning={volumeWarning}
+          scheduleStatusWarning={scheduleStatusWarning}
+          hasActiveSchedule={hasActiveSchedule}
+        />
+      </div>
       
-      <ScheduleSheet isOperatorView={true} />
+      <div>
+        <ScheduleSheet isOperatorView={true} />
+      </div>
         
       <Sheet open={showPrintPreview} onOpenChange={setShowPrintPreview}>
       <SheetContent className="w-full sm:max-w-4xl p-0 flex flex-col">
