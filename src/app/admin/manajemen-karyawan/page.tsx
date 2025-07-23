@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -43,6 +44,8 @@ export default function ManajemenKaryawanPage() {
 
   const handleSaveUser = async (data: UserFormValues, userId: string | null) => {
     const currentUsers = await getUsers();
+    
+    // Check for NIK uniqueness only, as username can be the same
     const nikExists = currentUsers.some(
       (user) => user.nik === data.nik && user.id !== userId
     );

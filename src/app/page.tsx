@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,12 +11,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, getUsers } from '@/lib/auth';
+import { seedUsersToFirestore, getUsers, createEmailFromNik } from '@/lib/auth';
 import Image from 'next/image';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-
-const createEmail = (username: string) => `${username.replace(/\s+/g, '_').toLowerCase()}@farika-perkasa.local`;
 
 export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -50,19 +49,18 @@ export default function LoginPage() {
             u => (u.nik && u.nik.toLowerCase() === lowerCaseInput) || (u.username.toLowerCase() === lowerCaseInput)
         );
 
-        if (!userDetail) {
+        if (!userDetail || !userDetail.nik) {
             toast({
                 variant: 'destructive',
                 title: 'Login Gagal',
-                description: 'NIK/Username tidak ditemukan.',
+                description: 'NIK/Username tidak ditemukan atau NIK tidak valid.',
             });
             setIsLoggingIn(false);
             return;
         }
 
-        // IMPORTANT: Always use the original username stored in the database to construct the email.
-        // This prevents login failures if the username display field is ever changed.
-        const email = createEmail(userDetail.username);
+        // IMPORTANT: Always use the unique NIK to construct the email for authentication.
+        const email = createEmailFromNik(userDetail.nik);
 
         await signInWithEmailAndPassword(auth, email, password);
 

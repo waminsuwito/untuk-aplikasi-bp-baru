@@ -56,8 +56,8 @@ const initialUsers: Omit<User, 'id'>[] = [
   { username: 'test_tukang_las', password: '123456', jabatan: 'TUKANG LAS', location: 'BP PEKANBARU', nik: 'T-TL' }
 ];
 
-// Helper to create a valid email from a username
-const createEmail = (username: string) => `${username.replace(/\s+/g, '_').toLowerCase()}@farika-perkasa.local`;
+// Helper to create a valid email from a NIK. NIK is guaranteed to be unique.
+export const createEmailFromNik = (nik: string) => `${nik.replace(/\s+/g, '_').toLowerCase()}@farika-perkasa.local`;
 
 /**
  * Seeds the Firestore database with the initial user list.
@@ -81,7 +81,7 @@ export async function seedUsersToFirestore() {
 
   for (const user of initialUsers) {
     try {
-      const email = createEmail(user.username);
+      const email = createEmailFromNik(user.nik || '');
       // Create user in Firebase Auth first
       const userCredential = await createUserWithEmailAndPassword(auth, email, user.password || '123456');
       const authUid = userCredential.user.uid;
@@ -158,7 +158,7 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
     }
 
     try {
-        const newUserEmail = createEmail(userData.username);
+        const newUserEmail = createEmailFromNik(userData.nik || '');
         // This call might sign out the current admin user
         const userCredential = await createUserWithEmailAndPassword(auth, newUserEmail, userData.password);
         const authUid = userCredential.user.uid;
@@ -183,7 +183,7 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
         console.error("Failed to add user:", error);
         // The error might be 'auth/email-already-in-use', which is useful feedback.
         if (error.code === 'auth/email-already-in-use') {
-          throw new Error(`Username "${userData.username}" sudah digunakan.`);
+          throw new Error(`NIK "${userData.nik}" sudah digunakan.`);
         }
         throw error; // Re-throw other errors
     }

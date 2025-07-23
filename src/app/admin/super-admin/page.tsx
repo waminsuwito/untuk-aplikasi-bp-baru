@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -43,6 +44,8 @@ export default function SuperAdminPage() {
 
   const handleSaveUser = async (data: UserFormValues, userId: string | null) => {
     const currentUsers = await getUsers();
+    
+    // Check for NIK uniqueness only, as username can be the same
     const nikExists = currentUsers.some(
       (user) => user.nik === data.nik && user.id !== userId
     );
@@ -91,7 +94,7 @@ export default function SuperAdminPage() {
       if (result) {
         toast({ title: 'User Created', description: `User "${data.username}" has been created.` });
       } else {
-        toast({ variant: 'destructive', title: 'Creation Failed', description: `Could not create user. The username might already exist in Firebase Auth.`});
+        toast({ variant: 'destructive', title: 'Creation Failed', description: `Could not create user. The NIK might already exist in Firebase Auth.`});
       }
     }
     
