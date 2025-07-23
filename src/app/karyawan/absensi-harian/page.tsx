@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { calculateDistance } from '@/lib/utils';
-import { MapPin, Camera, Loader2, CheckCircle, XCircle, LogIn, LogOut, Info, ThumbsUp, AlertTriangle, PartyPopper, Timer, Bed, Coffee } from 'lucide-react';
+import { MapPin, Camera, Loader2, CheckCircle, XCircle, LogIn, LogOut, Info, ThumbsUp, AlertTriangle, PartyPopper, Timer } from 'lucide-react';
 import type { AttendanceLocation, GlobalAttendanceRecord, UserLocation } from '@/lib/types';
 import { useAuth } from '@/context/auth-provider';
 import { format } from 'date-fns';
@@ -47,7 +46,6 @@ export default function AttendancePage() {
     const [currentAction, setCurrentAction] = useState<AttendanceAction>('none');
     const [descriptionContent, setDescriptionContent] = useState({
         message: 'Pilih lokasi, aktifkan kamera, lalu lakukan absensi.',
-        variant: 'default' as 'default' | 'destructive',
         icon: <Info className="h-5 w-5" />,
     });
 
@@ -111,29 +109,23 @@ export default function AttendancePage() {
     useEffect(() => {
         const getDynamicDescription = () => {
             if (!user) {
-                return { message: 'Memuat data pengguna...', variant: 'default' as const, icon: <Loader2 className="h-5 w-5 animate-spin" /> };
+                return { message: 'Memuat data pengguna...', icon: <Loader2 className="h-5 w-5 animate-spin" /> };
             }
 
-            const now = toZonedTime(new Date(), TIME_ZONE);
-            const hours = now.getHours();
-            const minutes = now.getMinutes();
             const userName = user.username;
-            const currentTime = hours * 100 + minutes;
 
             if (personalAttendanceRecord?.clockOut) {
-                return { message: `Absensi hari ini sudah selesai, ${userName}. Sampai jumpa besok!`, variant: 'default' as const, icon: <PartyPopper className="h-5 w-5 text-green-500" /> };
+                return { message: `Absensi hari ini sudah selesai. Sampai jumpa besok!`, icon: <PartyPopper className="h-5 w-5 text-green-500" /> };
             }
 
             if (personalAttendanceRecord?.clockIn) {
-                return { message: `Selamat sore/malam Sdr. ${userName}, terimakasih sudah melakukan pekerjaan anda hari ini, tetap semangat dan berusaha besok lebih baik lagi. Selamat istirahat, terimakasih.`, variant: 'default' as const, icon: <ThumbsUp className="h-5 w-5 text-green-500" /> };
+                return { message: `Selamat bekerja, ${userName}. Silakan absen pulang jika sudah waktunya.`, icon: <ThumbsUp className="h-5 w-5 text-green-500" /> };
             }
 
-            // If not clocked in, show a default welcome. Time-based messages disabled for testing.
-            return { message: `Selamat datang ${userName}. Silakan lakukan absensi masuk.`, variant: 'default' as const, icon: <Info className="h-5 w-5" /> };
+            return { message: `Selamat datang, ${userName}. Silakan lakukan absensi masuk.`, icon: <Info className="h-5 w-5" /> };
         };
 
-        const newDescription = getDynamicDescription();
-        setDescriptionContent(newDescription);
+        setDescriptionContent(getDynamicDescription());
 
     }, [user, currentAction, personalAttendanceRecord]);
 
@@ -209,7 +201,7 @@ export default function AttendancePage() {
     
     const handleAttendance = () => {
         if (!selectedLocation || currentAction === 'none') {
-            toast({ variant: 'destructive', title: 'Aksi Tidak Tersedia', description: 'Pastikan Anda telah memilih lokasi dan berada dalam jam absensi.' });
+            toast({ variant: 'destructive', title: 'Aksi Tidak Tersedia', description: 'Pastikan Anda telah memilih lokasi.' });
             return;
         }
 
@@ -237,13 +229,6 @@ export default function AttendancePage() {
 
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                // const userLat = position.coords.latitude;
-                // const userLon = position.coords.longitude;
-                // const distance = calculateDistance(userLat, userLon, selectedLocation.latitude, selectedLocation.longitude);
-                
-                // For testing purposes, we'll bypass the distance check.
-                // if (distance <= ATTENDANCE_RADIUS_METERS) {
-                
                 const now = new Date();
                 const nowZoned = toZonedTime(now, TIME_ZONE);
                 
@@ -286,12 +271,6 @@ export default function AttendancePage() {
                     setStatusMessage(`Berhasil absen pulang pada ${nowZoned.toLocaleTimeString('id-ID')}.`);
                 }
                 
-                // } else {
-                //     setAttendanceStatus('failed');
-                //     const failMsg = `Anda terlalu jauh! Jarak Anda ${distance.toFixed(0)} meter dari lokasi. Radius yang diizinkan adalah ${ATTENDANCE_RADIUS_METERS} meter.`;
-                //     setStatusMessage(failMsg);
-                //     toast({ variant: 'destructive', title: 'Absensi Gagal', description: 'Anda berada di luar radius yang diizinkan.' });
-                // }
                 setIsCheckingIn(false);
             },
             (error) => {
@@ -317,10 +296,7 @@ export default function AttendancePage() {
                 if (personalAttendanceRecord?.clockOut) {
                     return 'Absensi Hari Ini Selesai';
                 }
-                if (personalAttendanceRecord?.clockIn && !personalAttendanceRecord.clockOut) {
-                    return 'Absen Pulang Sekarang'; // Enable for testing
-                }
-                return 'Absen Masuk Sekarang'; // Enable for testing
+                return 'Absensi Tidak Tersedia';
         }
     };
     
@@ -333,7 +309,7 @@ export default function AttendancePage() {
                     <Camera className="h-6 w-6 text-primary" />
                     Absensi
                 </CardTitle>
-                <Alert variant={descriptionContent.variant} className="text-left [&>svg]:hidden">
+                <Alert variant="default" className="text-left [&>svg]:hidden">
                     <div className="flex items-start gap-3">
                         <div className="pt-0.5">{descriptionContent.icon}</div>
                         <div className="flex-1">
@@ -411,7 +387,7 @@ export default function AttendancePage() {
                 )}
             </CardContent>
             <CardFooter>
-                <Button onClick={handleAttendance} disabled={isCheckingIn || hasCameraPermission !== true || locations.length === 0 || !selectedLocation} className="w-full" size="lg">
+                <Button onClick={handleAttendance} disabled={isButtonDisabled} className="w-full" size="lg">
                     {isCheckingIn ? (
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     ) : (
@@ -425,5 +401,3 @@ export default function AttendancePage() {
         </Card>
     );
 }
-
-    

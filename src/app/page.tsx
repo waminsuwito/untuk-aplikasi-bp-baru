@@ -27,6 +27,7 @@ export default function LoginPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
 
+  // This effect is handled by the AuthProvider now, but we keep a fallback.
   useEffect(() => {
     if (!isAuthLoading && user) {
       const targetRoute = getDefaultRouteForUser(user);
@@ -59,15 +60,12 @@ export default function LoginPage() {
         }
 
         const email = createEmail(userDetail.username);
-        // Directly try to sign in with Firebase Auth
         await signInWithEmailAndPassword(auth, email, password);
 
-        // If signIn is successful, onAuthStateChanged in AuthProvider will handle the rest.
         toast({
             title: 'Login Berhasil',
             description: `Selamat datang, ${userDetail.username}!`,
         });
-        // No need to call setUser here, AuthProvider handles it.
 
     } catch (error: any) {
         console.error("Login process error:", error);

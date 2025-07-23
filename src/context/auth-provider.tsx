@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -7,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { type User } from '@/lib/types';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
 import { auth } from '@/lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { getCurrentUserDetails, firebaseLogout } from '@/lib/auth';
 
 interface AuthContextType {
@@ -25,56 +24,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        // User is signed in, get details from Firestore
         const userDetails = await getCurrentUserDetails(firebaseUser.uid);
-        if (userDetails) {
-          setUser(userDetails);
-        } else {
-          // User exists in Auth but not in Firestore, something is wrong. Log them out.
-          await firebaseLogout();
-          setUser(null);
+        setUser(userDetails);
+        
+        // Logic to redirect if on the login page or to the default route
+        const targetRoute = getDefaultRouteForUser(userDetails!);
+        if (pathname === '/') {
+          router.replace(targetRoute);
         }
       } else {
-        // User is signed out
         setUser(null);
+        // Logic to redirect to login if not already there
+        if (pathname !== '/') {
+          router.replace('/');
+        }
       }
       setIsLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, []);
-
-
-  useEffect(() => {
-    if (isLoading) {
-      return; // Don't do anything until the auth state is resolved
-    }
-
-    const isLoginPage = pathname === '/';
-
-    if (!user && !isLoginPage) {
-      // If not logged in and not on the login page, redirect to login
-      router.replace('/');
-    } else if (user && isLoginPage) {
-      // If logged in and on the login page, redirect to the default dashboard
-      router.replace(getDefaultRouteForUser(user));
-    }
-  }, [user, isLoading, pathname, router]);
+  }, [pathname, router]);
 
   const logout = async () => {
+    setIsLoading(true);
     await firebaseLogout();
-    // The onAuthStateChanged listener will handle setting user to null.
-    // We then rely on the useEffect above to redirect.
-    // A hard reload can also work to ensure all state is cleared.
-    window.location.href = '/';
+    setUser(null);
+    router.replace('/');
   };
 
-  const isAuthCheckRunning = isLoading || (!user && pathname !== '/') || (user && pathname === '/');
-  
-  if (isAuthCheckRunning) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // If not loading and no user, and not on login page, let useEffect handle redirect
+  // This avoids rendering children and then redirecting.
+  if (!isLoading && !user && pathname !== '/') {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />

@@ -1,14 +1,12 @@
 
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getDatabase, ref, onValue, set } from 'firebase/database';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { WeightDisplayPanel } from './material-inventory';
 import { ControlPanel } from './control-panel';
 import { StatusPanel, type TimerDisplayState } from './status-panel';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PrintPreview } from './print-preview';
 import { ScheduleSheet } from './schedule-sheet';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -21,7 +19,6 @@ import { database } from '@/lib/firebase'; // Import database instance directly
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
-import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertTriangle } from 'lucide-react';
 
 
@@ -115,16 +112,17 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (!powerOn) return;
+    if (!powerOn || !user) return;
 
-    // Use Firebase's own onAuthStateChanged to ensure the user is authenticated before listening.
-    // This is more reliable than relying on the React context's user state alone.
     const auth = getAuth();
-    const authUnsubscribe = onAuthStateChanged(auth, (authedUser) => {
-        if (authedUser) {
-            // User is signed in, now we can safely attach the database listener.
-            const weightsRef = ref(database, 'weights');
-            const weightsUnsubscribe = onValue(weightsRef, (snapshot) => {
+    const db = getDatabase();
+    
+    // This is the correct way to ensure auth is ready before subscribing to DB
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+        if (firebaseUser) {
+            // User is authenticated, now it's safe to listen to the database
+            const weightsRef = ref(db, 'weights');
+            const unsubscribeDB = onValue(weightsRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
                     setAggregateWeight(data.aggregate || 0);
@@ -139,15 +137,15 @@ export function Dashboard() {
                     description: 'Tidak dapat terhubung ke Realtime Database untuk data timbangan.'
                 });
             });
-
-            // Return the database listener's unsubscribe function to be called when the auth state changes.
-            return () => weightsUnsubscribe();
+            
+            // Return the DB unsubscribe function so it's cleaned up if auth state changes again
+            return () => unsubscribeDB();
         }
     });
 
-    // Cleanup the auth listener when the component unmounts or power is turned off.
-    return () => authUnsubscribe();
-  }, [powerOn, toast]);
+    return () => unsubscribeAuth();
+
+  }, [powerOn, user, toast]);
 
 
   useEffect(() => {

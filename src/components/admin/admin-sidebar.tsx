@@ -46,10 +46,7 @@ const logistikMaterialNav = [
   { href: '/admin/pemasukan-material', label: 'Pemasukan Material', icon: PackagePlus },
   { href: '/admin/pengiriman-material', label: 'Pengiriman Material', icon: Truck },
   { href: '/admin/bongkar-material', label: 'Bongkar Material', icon: Anchor },
-  { href: '/admin/usulan-karyawan', label: 'Usulan Karyawan', icon: Lightbulb },
-  { href: '/admin/komplain-karyawan', label: 'Komplain Karyawan', icon: MessageSquareWarning },
   { href: '/admin/broadcast-karyawan', label: 'Broadcast Karyawan', icon: Megaphone },
-  { href: '/admin/laporan-anonim', label: 'Laporan Anonim', icon: MailQuestion },
 ];
 
 const hseHrdNav = [
@@ -60,8 +57,6 @@ const hseHrdNav = [
   { href: '/admin/insiden-kerja', label: 'Insiden Kerja', icon: AlertTriangle },
   { href: '/admin/usulan-karyawan', label: 'Usulan Karyawan', icon: Lightbulb },
   { href: '/admin/komplain-karyawan', label: 'Komplain Karyawan', icon: MessageSquareWarning },
-  { href: '/admin/broadcast-karyawan', label: 'Broadcast Karyawan', icon: Megaphone },
-  { href: '/admin/laporan-anonim', label: 'Laporan Anonim', icon: MailQuestion },
   { href: '/admin/set-lokasi-absensi', label: 'Set Lokasi Absensi', icon: MapPin },
 ];
 
