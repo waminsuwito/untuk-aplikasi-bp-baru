@@ -26,21 +26,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      setIsLoading(true);
       if (firebaseUser) {
-        // User is logged in according to Firebase Auth.
-        // Fetch details from Firestore.
         const userDetails = await getCurrentUserDetails(firebaseUser.uid);
         setUser(userDetails);
         
-        // If user is on login page, redirect them to their default page.
         if (pathname === '/' && userDetails) {
             const targetRoute = getDefaultRouteForUser(userDetails);
             router.replace(targetRoute);
         }
       } else {
-        // User is not logged in.
         setUser(null);
-        // If user is not on login page, redirect them to login.
         if (pathname !== '/') {
             router.replace('/');
         }
@@ -57,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace('/');
   };
 
-  // If still loading, show a global spinner.
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
@@ -66,20 +61,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  // If not loading and there's no user, and we are not on the login page,
-  // this prevents rendering children that might depend on the user object.
   if (!user && pathname !== '/') {
-    return null; // or return the loader again
+    return null; 
   }
   
-  // If we are on the login page, but the user object is now available,
-  // this prevents a flash of the login page before redirection.
   if (user && pathname === '/') {
-    return null; // or return the loader again
+    return null;
   }
 
   return (
-    <AuthContext.Provider value={{ user, logout, isLoading: false }}>
+    <AuthContext.Provider value={{ user, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

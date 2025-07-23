@@ -89,7 +89,7 @@ function WeightSimulator() {
 }
 
 export function Dashboard() {
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
   
   const [aggregateWeight, setAggregateWeight] = useState(0);
@@ -157,11 +157,14 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    // Only proceed if user is authenticated
-    if (!user) return;
+    // Wait until authentication is fully resolved before proceeding
+    if (isAuthLoading || !user) {
+        return;
+    }
 
     const db = getDatabase();
     const weightsRef = ref(db, 'weights');
+    let unsubscribe: () => void;
 
     // Function to initialize and start listening
     const initializeAndListen = async () => {
@@ -173,22 +176,17 @@ export function Dashboard() {
           await set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
         }
       } catch (error: any) {
-        // This will catch permission errors during the initial get/set
-        if (error.code === 'PERMISSION_DENIED') {
-            addLog("Menunggu otentikasi untuk timbangan...", "text-amber-500");
-        } else {
-            console.error("Firebase initialization error:", error);
-            toast({
-              variant: 'destructive',
-              title: 'Error Inisialisasi Database',
-              description: `Gagal menyiapkan data timbangan: ${error.message}`
-            });
-        }
-        return; // Don't attach listener if init fails or permission is denied initially
+        console.error("Firebase initialization error:", error);
+        toast({
+          variant: 'destructive',
+          title: 'Error Inisialisasi Database',
+          description: `Gagal menyiapkan data timbangan: ${error.message}`
+        });
+        return; // Don't attach listener if init fails
       }
 
       // If initialization was successful, attach the listener
-      const unsubscribe = onValue(weightsRef, (snapshot) => {
+      unsubscribe = onValue(weightsRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
           setAggregateWeight(data.aggregate || 0);
@@ -203,21 +201,17 @@ export function Dashboard() {
           description: `Tidak dapat memuat data timbangan: ${error.message}`
         });
       });
-
-      return unsubscribe;
     };
 
-    const unsubscribePromise = initializeAndListen();
+    initializeAndListen();
 
     // Cleanup function
     return () => {
-      unsubscribePromise.then(unsubscribe => {
-        if (unsubscribe) {
-          unsubscribe();
-        }
-      });
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
-  }, [user, toast]);
+  }, [isAuthLoading, user, toast]);
 
 
   useEffect(() => {
