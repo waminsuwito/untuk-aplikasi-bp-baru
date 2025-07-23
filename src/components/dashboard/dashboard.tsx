@@ -114,59 +114,44 @@ export function Dashboard() {
 
   useEffect(() => {
     if (isAuthLoading || !user) {
-      return;
+        return;
     }
 
     const db = getDatabase();
     const weightsRef = ref(db, 'weights');
-    let unsubscribe: () => void;
 
-    const initializeAndListen = async () => {
-      try {
-        const snapshot = await get(weightsRef);
-        if (!snapshot.exists()) {
-          addLog("Inisialisasi data timbangan...", "text-blue-400");
-          await set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
-        }
-      } catch (error: any) {
-        console.error("Firebase initialization error:", error);
-        if (error.code === 'PERMISSION_DENIED') {
-            addLog("Koneksi ke timbangan gagal: Izin ditolak.", "text-destructive");
-        } else {
-            toast({
-              variant: 'destructive',
-              title: 'Error Inisialisasi Database',
-              description: `Gagal menyiapkan data timbangan: ${error.message}`
-            });
-        }
-        return;
-      }
+    let isInitialDataChecked = false;
 
-      unsubscribe = onValue(weightsRef, (snapshot) => {
+    const unsubscribe = onValue(weightsRef, (snapshot) => {
+        if (!isInitialDataChecked) {
+            if (!snapshot.exists()) {
+                addLog("Inisialisasi data timbangan...", "text-blue-400");
+                set(weightsRef, { aggregate: 0, air: 0, semen: 0 }).catch(error => {
+                     toast({ variant: 'destructive', title: 'Gagal Inisialisasi', description: `Tidak dapat menulis data awal: ${error.message}` });
+                });
+            }
+            isInitialDataChecked = true;
+        }
+
         const data = snapshot.val();
         if (data) {
-          setAggregateWeight(data.aggregate || 0);
-          setAirWeight(data.air || 0);
-          setSemenWeight(data.semen || 0);
+            setAggregateWeight(data.aggregate || 0);
+            setAirWeight(data.air || 0);
+            setSemenWeight(data.semen || 0);
         }
-      }, (error) => {
+    }, (error) => {
         console.error("Firebase weight listener error:", error);
         toast({
-          variant: 'destructive',
-          title: 'Koneksi Timbangan Gagal',
-          description: `Tidak dapat memuat data timbangan: ${error.message}`
+            variant: 'destructive',
+            title: 'Koneksi Timbangan Gagal',
+            description: `Tidak dapat memuat data timbangan: ${error.message}`
         });
-      });
-    };
-
-    initializeAndListen();
+    });
 
     return () => {
-      if (unsubscribe) {
         unsubscribe();
-      }
     };
-  }, [isAuthLoading, user, toast]);
+}, [isAuthLoading, user, toast]);
 
 
   useEffect(() => {
@@ -465,7 +450,7 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-       <div className="grid grid-cols-12 gap-4">
+      <div className="grid grid-cols-12 gap-4">
         <div className="col-span-9">
           <WeightDisplayPanel
               aggregateWeight={aggregateWeight}
