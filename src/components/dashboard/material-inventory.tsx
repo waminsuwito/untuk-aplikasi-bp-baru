@@ -1,15 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
 
 interface WeightDisplayProps {
   title: string;
   value: number;
   unit: string;
   target: number;
-  disabled: boolean;
 }
 
-function WeightDisplay({ title, value, unit, target, disabled }: WeightDisplayProps) {
+function WeightDisplay({ title, value, unit, target }: WeightDisplayProps) {
   const percentage = target > 0 ? (value / target) * 100 : 0;
   const formattedValue = Math.round(value).toString();
 
@@ -41,7 +41,6 @@ export function WeightDisplayPanel({
   targetAggregate,
   targetAir,
   targetSemen,
-  disabled
 }: {
   aggregateWeight: number,
   airWeight: number,
@@ -49,7 +48,6 @@ export function WeightDisplayPanel({
   targetAggregate: number,
   targetAir: number,
   targetSemen: number,
-  disabled: boolean;
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -58,21 +56,18 @@ export function WeightDisplayPanel({
         value={aggregateWeight}
         unit="Kg"
         target={targetAggregate}
-        disabled={disabled}
       />
       <WeightDisplay 
         title="Air"
         value={airWeight}
         unit="Kg"
         target={targetAir}
-        disabled={disabled}
       />
       <WeightDisplay 
         title="Semen"
         value={semenWeight}
         unit="Kg"
         target={targetSemen}
-        disabled={disabled}
       />
     </div>
   );

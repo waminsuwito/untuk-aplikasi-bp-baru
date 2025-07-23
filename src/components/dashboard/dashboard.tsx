@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getDatabase, ref, onValue, set, get } from 'firebase/database';
+import { getDatabase, ref, onValue, set } from 'firebase/database';
 import { WeightDisplayPanel } from './material-inventory';
 import { ControlPanel } from './control-panel';
 import { StatusPanel, type TimerDisplayState } from './status-panel';
@@ -18,7 +18,7 @@ import { auth, database } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
-import { AlertTriangle, Plus, Minus } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
@@ -114,39 +114,41 @@ export function Dashboard() {
 
   useEffect(() => {
     if (isAuthLoading || !user) {
-        return;
+      return;
     }
-
+  
     const db = getDatabase();
     const weightsRef = ref(db, 'weights');
-
+  
     const unsubscribe = onValue(weightsRef, (snapshot) => {
-        if (!snapshot.exists()) {
-             addLog("Inisialisasi data timbangan...", "text-blue-400");
-             set(weightsRef, { aggregate: 0, air: 0, semen: 0 }).catch(error => {
-                 toast({ variant: 'destructive', title: 'Gagal Inisialisasi', description: `Tidak dapat menulis data awal: ${error.message}` });
-             });
-        }
-        
-        const data = snapshot.val();
-        if (data) {
-            setAggregateWeight(data.aggregate || 0);
-            setAirWeight(data.air || 0);
-            setSemenWeight(data.semen || 0);
-        }
-    }, (error) => {
-        console.error("Firebase weight listener error:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Koneksi Timbangan Gagal',
-            description: `Tidak dapat memuat data timbangan: ${error.message}`
+      if (!snapshot.exists()) {
+        addLog("Inisialisasi data timbangan...", "text-blue-400");
+        // Initialize data only if it doesn't exist.
+        set(weightsRef, { aggregate: 0, air: 0, semen: 0 }).catch(error => {
+          console.error("Firebase weight initialization error:", error);
+          toast({ variant: 'destructive', title: 'Gagal Inisialisasi', description: `Tidak dapat menulis data awal: ${error.message}` });
         });
+      }
+      
+      const data = snapshot.val();
+      if (data) {
+        setAggregateWeight(data.aggregate || 0);
+        setAirWeight(data.air || 0);
+        setSemenWeight(data.semen || 0);
+      }
+    }, (error) => {
+      console.error("Firebase weight listener error:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Koneksi Timbangan Gagal',
+        description: `Tidak dapat memuat data timbangan: ${error.message}`
+      });
     });
-
+  
     return () => {
-        unsubscribe();
+      unsubscribe();
     };
-}, [isAuthLoading, user, toast]);
+  }, [isAuthLoading, user, toast]);
 
 
   useEffect(() => {
@@ -445,7 +447,7 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-12 gap-4">
+       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 lg:col-span-9">
           <WeightDisplayPanel
               aggregateWeight={aggregateWeight}
@@ -454,7 +456,6 @@ export function Dashboard() {
               targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2}
               targetAir={currentTargetWeights.air}
               targetSemen={currentTargetWeights.semen}
-              disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
           />
         </div>
         <div className="col-span-12 lg:col-span-3">
