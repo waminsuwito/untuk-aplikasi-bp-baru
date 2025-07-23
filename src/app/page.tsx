@@ -22,20 +22,13 @@ export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  const [nik, setNik] = useState('');
+  const [nikOrUsername, setNikOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
 
-  // This effect is handled by the AuthProvider now, but we keep a fallback.
-  useEffect(() => {
-    if (!isAuthLoading && user) {
-      const targetRoute = getDefaultRouteForUser(user);
-      if(window.location.pathname !== targetRoute) {
-        router.replace(targetRoute);
-      }
-    }
-  }, [user, isAuthLoading, router]);
+  // AuthProvider now handles all redirection logic.
+  // This page will only be rendered if user is not logged in.
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +36,7 @@ export default function LoginPage() {
     
     try {
         const allUsers = await getUsers();
-        const lowerCaseInput = nik.toLowerCase();
+        const lowerCaseInput = nikOrUsername.toLowerCase();
         
         const userDetail = allUsers.find(
             u => (u.username.toLowerCase() === lowerCaseInput || (u.nik && u.nik.toLowerCase() === lowerCaseInput))
@@ -60,12 +53,14 @@ export default function LoginPage() {
         }
 
         const email = createEmail(userDetail.username);
+        // signInWithEmailAndPassword will trigger onAuthStateChanged in AuthProvider
         await signInWithEmailAndPassword(auth, email, password);
 
         toast({
             title: 'Login Berhasil',
             description: `Selamat datang, ${userDetail.username}!`,
         });
+        // No need to redirect here, AuthProvider will handle it.
 
     } catch (error: any) {
         console.error("Login process error:", error);
@@ -122,8 +117,8 @@ export default function LoginPage() {
                 type="text"
                 placeholder="Masukkan NIK atau username Anda"
                 required
-                value={nik}
-                onChange={(e) => setNik(e.target.value)}
+                value={nikOrUsername}
+                onChange={(e) => setNikOrUsername(e.target.value)}
                 disabled={isLoggingIn || isSeeding}
                 />
             </div>

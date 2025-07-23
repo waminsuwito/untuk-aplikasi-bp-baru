@@ -46,7 +46,6 @@ const logistikMaterialNav = [
   { href: '/admin/pemasukan-material', label: 'Pemasukan Material', icon: PackagePlus },
   { href: '/admin/pengiriman-material', label: 'Pengiriman Material', icon: Truck },
   { href: '/admin/bongkar-material', label: 'Bongkar Material', icon: Anchor },
-  { href: '/admin/broadcast-karyawan', label: 'Broadcast Karyawan', icon: Megaphone },
 ];
 
 const hseHrdNav = [
@@ -55,8 +54,6 @@ const hseHrdNav = [
   { href: '/admin/rangkuman-absensi-karyawan', label: 'Rangkuman Absensi', icon: BarChart3 },
   { href: '/admin/rangkuman-kegiatan-karyawan', label: 'Rangkuman Kegiatan', icon: AreaChart },
   { href: '/admin/insiden-kerja', label: 'Insiden Kerja', icon: AlertTriangle },
-  { href: '/admin/usulan-karyawan', label: 'Usulan Karyawan', icon: Lightbulb },
-  { href: '/admin/komplain-karyawan', label: 'Komplain Karyawan', icon: MessageSquareWarning },
   { href: '/admin/set-lokasi-absensi', label: 'Set Lokasi Absensi', icon: MapPin },
 ];
 
@@ -139,7 +136,7 @@ export function AdminSidebar() {
       <nav className="flex flex-col gap-2">
         <h2 className="mb-2 text-lg font-semibold tracking-tight">Admin Menu</h2>
         {navItems.map((item) => {
-          const showAnonymousDot = (item.href === '/admin/pesan-anonim' || item.href === '/admin/laporan-anonim') && hasUnreadAnonymous;
+          const showAnonymousDot = (item.href === '/admin/pesan-anonim') && hasUnreadAnonymous;
           const showAccidentDot = item.href === '/admin/insiden-kerja' && hasUnreadAccidents;
           const showSuggestionDot = item.href === '/admin/usulan-karyawan' && hasUnreadSuggestions;
           const showComplaintDot = item.href === '/admin/komplain-karyawan' && hasUnreadComplaints;

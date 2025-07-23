@@ -25,18 +25,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      setIsLoading(true);
       if (firebaseUser) {
         const userDetails = await getCurrentUserDetails(firebaseUser.uid);
         setUser(userDetails);
         
-        // Logic to redirect if on the login page or to the default route
         const targetRoute = getDefaultRouteForUser(userDetails!);
         if (pathname === '/') {
           router.replace(targetRoute);
         }
       } else {
         setUser(null);
-        // Logic to redirect to login if not already there
         if (pathname !== '/') {
           router.replace('/');
         }
@@ -45,13 +44,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [pathname, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
 
   const logout = async () => {
     setIsLoading(true);
     await firebaseLogout();
     setUser(null);
     router.replace('/');
+    // isLoading will be set to false by the onAuthStateChanged listener
   };
 
   if (isLoading) {
@@ -62,10 +63,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  // If not loading and no user, and not on login page, let useEffect handle redirect
-  // This avoids rendering children and then redirecting.
-  if (!isLoading && !user && pathname !== '/') {
+  // If not authenticated and not on the login page, show loading while redirecting
+  if (!user && pathname !== '/') {
     return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  // If authenticated and on the login page, show loading while redirecting
+  if (user && pathname === '/') {
+     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
