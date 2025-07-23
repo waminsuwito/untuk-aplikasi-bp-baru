@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -156,27 +157,37 @@ export function Dashboard() {
   };
 
   useEffect(() => {
+    // Only proceed if user is authenticated
     if (!user) return;
 
-    const weightsRef = ref(database, 'weights');
+    const db = getDatabase();
+    const weightsRef = ref(db, 'weights');
 
+    // Function to initialize and start listening
     const initializeAndListen = async () => {
       try {
         const snapshot = await get(weightsRef);
         if (!snapshot.exists()) {
           addLog("Inisialisasi data timbangan...", "text-blue-400");
+          // Initializing the data if it doesn't exist
           await set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
         }
       } catch (error: any) {
-        console.error("Firebase initialization error:", error);
-        toast({
-          variant: 'destructive',
-          title: 'Error Inisialisasi Database',
-          description: `Gagal menyiapkan data timbangan: ${error.message}`
-        });
-        return; // Don't attach listener if init fails
+        // This will catch permission errors during the initial get/set
+        if (error.code === 'PERMISSION_DENIED') {
+            addLog("Menunggu otentikasi untuk timbangan...", "text-amber-500");
+        } else {
+            console.error("Firebase initialization error:", error);
+            toast({
+              variant: 'destructive',
+              title: 'Error Inisialisasi Database',
+              description: `Gagal menyiapkan data timbangan: ${error.message}`
+            });
+        }
+        return; // Don't attach listener if init fails or permission is denied initially
       }
 
+      // If initialization was successful, attach the listener
       const unsubscribe = onValue(weightsRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -198,8 +209,13 @@ export function Dashboard() {
 
     const unsubscribePromise = initializeAndListen();
 
+    // Cleanup function
     return () => {
-      unsubscribePromise.then(unsubscribe => unsubscribe && unsubscribe());
+      unsubscribePromise.then(unsubscribe => {
+        if (unsubscribe) {
+          unsubscribe();
+        }
+      });
     };
   }, [user, toast]);
 

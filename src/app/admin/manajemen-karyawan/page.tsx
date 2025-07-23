@@ -25,18 +25,17 @@ export default function ManajemenKaryawanPage() {
     setIsLoading(true);
     try {
       const userList = await getUsers();
-      setUsers(userList || []); // Ensure userList is an array, fallback to empty array
+      setUsers(userList || []);
     } catch (error) {
       console.error("Failed to load users:", error);
       toast({ variant: 'destructive', title: "Error", description: "Could not load user data from the database." });
-      setUsers([]); // On error, ensure users is an empty array
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
-    // Only fetch users once the authentication process is complete
     if (!isAuthLoading) {
       fetchUsers();
     }
@@ -65,10 +64,6 @@ export default function ManajemenKaryawanPage() {
         nik: data.nik,
       };
       if (data.password) {
-        // For editing, we assume password change is handled elsewhere or requires re-authentication.
-        // The simplified approach is to not allow password changes from this form directly for existing users.
-        // Or, we need a separate, more secure flow for it.
-        // For now, we will just update other details. If password change is needed, it's a separate feature.
         console.warn("Password change for existing users from this form is not implemented.");
       }
       await updateUser(userId, userDataToUpdate);

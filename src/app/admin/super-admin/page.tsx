@@ -25,18 +25,17 @@ export default function SuperAdminPage() {
     setIsLoading(true);
     try {
       const userList = await getUsers();
-      setUsers(userList || []); // Ensure userList is an array, fallback to empty array
+      setUsers(userList || []);
     } catch (error) {
       console.error("Failed to load users:", error);
       toast({ variant: 'destructive', title: "Error", description: "Could not load user data from the database." });
-      setUsers([]); // On error, ensure users is an empty array
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
-    // Only fetch users once the authentication process is complete
     if (!isAuthLoading) {
         fetchUsers();
     }
@@ -110,8 +109,6 @@ export default function SuperAdminPage() {
     setUserToEdit(null);
   };
 
-  const usersForDisplay = Array.isArray(users) ? users.map(({ password, ...user }) => user) : [];
-
   if (isLoading || isAuthLoading) {
     return (
         <div className="w-full max-w-4xl space-y-6 mx-auto">
@@ -140,6 +137,8 @@ export default function SuperAdminPage() {
         </div>
     );
   }
+  
+  const usersForDisplay = Array.isArray(users) ? users.map(({ password, ...user }) => user) : [];
 
   return (
     <div className="w-full max-w-4xl space-y-6 mx-auto">
@@ -168,7 +167,7 @@ export default function SuperAdminPage() {
           <CardHeader>
               <CardTitle>Manage Users</CardTitle>
               <CardDescription>View, edit, or delete existing users.</CardDescription>
-          </CardHeader>
+          </Header>
           <CardContent>
               <UserList users={usersForDisplay} onEdit={handleEditUser} onDelete={handleDeleteUser} />
           </CardContent>
