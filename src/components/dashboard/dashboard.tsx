@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -113,38 +112,39 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    // This effect now ONLY listens for auth changes.
-    // The database connection logic is moved inside the 'if (user)' block.
-    if (!isAuthLoading && user) {
-      const db = getDatabase();
-      const weightsRef = ref(db, 'weights');
-
-      const unsubscribe = onValue(weightsRef, (snapshot) => {
-        if (!snapshot.exists()) {
-          addLog("Inisialisasi data timbangan...", "text-blue-400");
-          set(weightsRef, { aggregate: 0, air: 0, semen: 0 }).catch(error => {
-            console.error("Firebase weight initialization error:", error);
-          });
-        } else {
-          const data = snapshot.val();
-          setAggregateWeight(data.aggregate || 0);
-          setAirWeight(data.air || 0);
-          setSemenWeight(data.semen || 0);
-        }
-      }, (error) => {
-        console.error("Firebase weight listener error:", error);
-        toast({
-          variant: 'destructive',
-          title: 'Koneksi Timbangan Gagal',
-          description: `Tidak dapat memuat data timbangan: ${error.message}`
-        });
-      });
-
-      // Cleanup function to detach the listener when the component unmounts or user logs out
-      return () => {
-        unsubscribe();
-      };
+    // CRITICAL FIX: Do not attempt any DB connection until auth state is fully resolved and a user is present.
+    if (isAuthLoading || !user) {
+      return;
     }
+
+    const db = getDatabase();
+    const weightsRef = ref(db, 'weights');
+
+    const unsubscribe = onValue(weightsRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        addLog("Inisialisasi data timbangan...", "text-blue-400");
+        set(weightsRef, { aggregate: 0, air: 0, semen: 0 }).catch(error => {
+          console.error("Firebase weight initialization error:", error);
+        });
+      } else {
+        const data = snapshot.val();
+        setAggregateWeight(data.aggregate || 0);
+        setAirWeight(data.air || 0);
+        setSemenWeight(data.semen || 0);
+      }
+    }, (error) => {
+      console.error("Firebase weight listener error:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Koneksi Timbangan Gagal',
+        description: `Tidak dapat memuat data timbangan: ${error.message}`
+      });
+    });
+
+    // Cleanup function to detach the listener when the component unmounts or user logs out
+    return () => {
+      unsubscribe();
+    };
   }, [isAuthLoading, user, toast]);
 
 
@@ -346,7 +346,7 @@ export function Dashboard() {
               payload: finalData
             };
             const printJobRef = ref(database, `print_jobs/${user.location}/${finalData.jobId}`);
-            set(printJobRef, printJob);
+            set(printJobRef);
             addLog(`Notifikasi cetak dikirim ke Admin BP`, 'text-blue-400');
           } catch (error) {
             console.error("Failed to send print job to RTDB:", error);

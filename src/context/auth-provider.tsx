@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -26,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      // Keep loading until we have user details and have performed the redirect check
       setIsLoading(true);
       if (firebaseUser) {
         const userDetails = await getCurrentUserDetails(firebaseUser.uid);
@@ -41,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             router.replace('/');
         }
       }
+      // Only stop loading after all checks and potential redirects are done
       setIsLoading(false);
     });
 
@@ -61,10 +62,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // If loading is done, and we're not on the login page, but have no user, don't render children.
+  // This prevents children from rendering prematurely and accessing protected resources.
   if (!user && pathname !== '/') {
     return null; 
   }
   
+  // If loading is done, and we are on the login page but have a user, don't render children.
+  // The redirect in useEffect will handle navigation.
   if (user && pathname === '/') {
     return null;
   }
