@@ -1,10 +1,8 @@
 {
   "rules": {
-    "realtime": {
-      "weights": {
-        ".read": "auth != null",
-        ".write": "auth != null"
-      }
+    "weights": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     },
     "print_jobs": {
       "$location": {
