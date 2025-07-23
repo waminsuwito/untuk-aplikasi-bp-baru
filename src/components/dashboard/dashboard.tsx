@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getDatabase, ref, onValue, set } from 'firebase/database';
+import { getDatabase, ref, onValue, set, get } from 'firebase/database';
 import { getAuth, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { WeightDisplayPanel } from './material-inventory';
 import { ControlPanel } from './control-panel';
@@ -19,8 +19,10 @@ import { database } from '@/lib/firebase'; // Import database instance directly
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
-import { AlertTriangle } from 'lucide-react';
-
+import { AlertTriangle, Plus, Minus } from 'lucide-react';
+import { Card } from '../ui/card';
+import { Button } from '../ui/button';
+import { Label } from '../ui/label';
 
 type AutoProcessStep =
   | 'idle'
@@ -42,6 +44,51 @@ const generateSimulatedWeight = (target: number, roundingUnit: 1 | 5): number =>
 const PRINTER_SETTINGS_KEY = 'app-printer-settings';
 const PRODUCTION_HISTORY_KEY = 'app-production-history';
 type PrintMode = 'preview' | 'direct' | 'save';
+
+// Helper component for weight simulation
+function WeightSimulator() {
+  const { user } = useAuth();
+
+  const updateWeight = async (material: 'aggregate' | 'air' | 'semen', amount: number) => {
+    if (!user || user.jabatan !== 'OPRATOR BP') return;
+    const db = getDatabase();
+    const materialRef = ref(db, `weights/${material}`);
+    const snapshot = await get(materialRef);
+    const currentValue = snapshot.val() || 0;
+    await set(materialRef, Math.max(0, currentValue + amount));
+  };
+  
+  if (user?.jabatan !== 'OPRATOR BP') return null;
+
+  return (
+    <Card className="p-4 bg-muted/50 no-print">
+      <Label className="text-center block mb-2 font-semibold text-primary">Timbangan Simulator (Development)</Label>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-sm">Aggregate</p>
+          <div className="flex gap-1">
+            <Button size="sm" onClick={() => updateWeight('aggregate', -100)}><Minus /></Button>
+            <Button size="sm" onClick={() => updateWeight('aggregate', 100)}><Plus /></Button>
+          </div>
+        </div>
+         <div className="flex flex-col items-center gap-1">
+          <p className="text-sm">Air</p>
+          <div className="flex gap-1">
+            <Button size="sm" onClick={() => updateWeight('air', -10)}><Minus /></Button>
+            <Button size="sm" onClick={() => updateWeight('air', 10)}><Plus /></Button>
+          </div>
+        </div>
+         <div className="flex flex-col items-center gap-1">
+          <p className="text-sm">Semen</p>
+          <div className="flex gap-1">
+            <Button size="sm" onClick={() => updateWeight('semen', -50)}><Minus /></Button>
+            <Button size="sm" onClick={() => updateWeight('semen', 50)}><Plus /></Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -117,11 +164,22 @@ export function Dashboard() {
     const auth = getAuth();
     const db = getDatabase();
     
-    // This is the correct way to ensure auth is ready before subscribing to DB
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser && user?.jabatan === 'OPRATOR BP') {
-            // User is authenticated, now it's safe to listen to the database
             const weightsRef = ref(db, 'weights');
+
+            // Check if data exists, if not, initialize it.
+            const snapshot = await get(weightsRef);
+            if (!snapshot.exists()) {
+                console.log("Path '/weights' does not exist. Initializing with default values.");
+                await set(weightsRef, {
+                    aggregate: 0,
+                    air: 0,
+                    semen: 0
+                });
+            }
+            
+            // Now, set up the listener
             const unsubscribeDB = onValue(weightsRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
@@ -138,7 +196,6 @@ export function Dashboard() {
                 });
             });
             
-            // Return the DB unsubscribe function so it's cleaned up if auth state changes again
             return () => unsubscribeDB();
         }
     });
@@ -461,6 +518,7 @@ export function Dashboard() {
       <>
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-12">
+               <WeightSimulator />
               <WeightDisplayPanel
                 aggregateWeight={aggregateWeight}
                 airWeight={airWeight}
@@ -534,5 +592,3 @@ export function Dashboard() {
     </div>
   );
 }
-
-    
