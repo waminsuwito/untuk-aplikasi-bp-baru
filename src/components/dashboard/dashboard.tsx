@@ -524,23 +524,20 @@ export function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <>
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-12">
-               <WeightSimulator />
-              <WeightDisplayPanel
-                aggregateWeight={aggregateWeight}
-                airWeight={airWeight}
-                semenWeight={semenWeight}
-                targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2}
-                targetAir={currentTargetWeights.air}
-                targetSemen={currentTargetWeights.semen}
-                joggingValues={joggingValues}
-                onJoggingChange={handleJoggingChange}
-                disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
-              />
-            </div>
+        <WeightSimulator />
+        <WeightDisplayPanel
+            aggregateWeight={aggregateWeight}
+            airWeight={airWeight}
+            semenWeight={semenWeight}
+            targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2}
+            targetAir={currentTargetWeights.air}
+            targetSemen={currentTargetWeights.semen}
+            joggingValues={joggingValues}
+            onJoggingChange={handleJoggingChange}
+            disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
+        />
 
+        <div className="grid grid-cols-12 gap-4">
             <div className="col-span-9">
               <ControlPanel
                 powerOn={powerOn}
@@ -571,33 +568,31 @@ export function Dashboard() {
                 } : undefined}
               />
             </div>
-             <div className="col-span-12">
-                <ScheduleSheet isOperatorView={true} />
+        </div>
+        
+        <ScheduleSheet isOperatorView={true} />
+          
+        <Sheet open={showPrintPreview} onOpenChange={setShowPrintPreview}>
+        <SheetContent className="w-full sm:max-w-4xl p-0 flex flex-col">
+            <SheetHeader className="p-6 bg-background border-b">
+                <SheetTitle>Print Preview</SheetTitle>
+                <SheetDescription>
+                Review the batch details below. Use the print button to get a physical copy.
+                </SheetDescription>
+            </SheetHeader>
+            <PrintPreview 
+                data={completedBatchData}
+                operatorName={user?.username}
+                onClose={() => setShowPrintPreview(false)} 
+            />
+        </SheetContent>
+        </Sheet>
+        
+        <div className="hidden">
+            <div id="direct-print-content">
+                {completedBatchData && <PrintPreview data={completedBatchData} operatorName={user?.username} onClose={() => {}} />}
             </div>
-          </div>
-          
-          <Sheet open={showPrintPreview} onOpenChange={setShowPrintPreview}>
-            <SheetContent className="w-full sm:max-w-4xl p-0 flex flex-col">
-                <SheetHeader className="p-6 bg-background border-b">
-                    <SheetTitle>Print Preview</SheetTitle>
-                    <SheetDescription>
-                    Review the batch details below. Use the print button to get a physical copy.
-                    </SheetDescription>
-                </SheetHeader>
-                <PrintPreview 
-                    data={completedBatchData}
-                    operatorName={user?.username}
-                    onClose={() => setShowPrintPreview(false)} 
-                />
-            </SheetContent>
-          </Sheet>
-          
-          <div className="hidden">
-              <div id="direct-print-content">
-                  {completedBatchData && <PrintPreview data={completedBatchData} operatorName={user?.username} onClose={() => {}} />}
-              </div>
-          </div>
-        </>
+        </div>
     </div>
   );
 }
