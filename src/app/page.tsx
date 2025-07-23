@@ -41,55 +41,42 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     
     try {
-        // Attempt 1: Assume the input is a NIK and try to sign in directly.
-        const emailFromNik = createEmailFromNik(nikOrUsername);
-        await signInWithEmailAndPassword(auth, emailFromNik, password);
+        const allUsers = await getUsers();
+        const lowerCaseInput = nikOrUsername.toLowerCase();
         
-        // If successful, onAuthStateChanged in AuthProvider will handle redirection.
-        // We can just show a toast here. The name will be loaded by the provider.
-        toast({
-            title: 'Login Berhasil',
-            description: `Selamat datang kembali!`,
-        });
+        // Find user by either NIK or username
+        const userDetail = allUsers.find(u => 
+            (u.nik?.toLowerCase() === lowerCaseInput) || 
+            (u.username.toLowerCase() === lowerCaseInput)
+        );
+
+        if (userDetail && userDetail.nik) {
+            // ALWAYS use the NIK from the database to create the authentication email
+            const email = createEmailFromNik(userDetail.nik);
+            await signInWithEmailAndPassword(auth, email, password);
+            
+            // If successful, onAuthStateChanged in AuthProvider will handle redirection.
+            toast({
+                title: 'Login Berhasil',
+                description: `Selamat datang, ${userDetail.username}!`,
+            });
+        } else {
+            // If no user is found in Firestore, the credential is treated as invalid.
+            throw new Error('Invalid credentials');
+        }
 
     } catch (error: any) {
-        // If the first attempt fails (e.g., invalid-credential), it might be a username.
-        if (error.code === 'auth/invalid-credential') {
-            try {
-                // Attempt 2: Find the user by username in Firestore to get their NIK.
-                const allUsers = await getUsers();
-                const lowerCaseInput = nikOrUsername.toLowerCase();
-                const userDetail = allUsers.find(u => u.username.toLowerCase() === lowerCaseInput);
-
-                if (userDetail && userDetail.nik) {
-                    const emailFromDbNik = createEmailFromNik(userDetail.nik);
-                    await signInWithEmailAndPassword(auth, emailFromDbNik, password);
-                    
-                    toast({
-                        title: 'Login Berhasil',
-                        description: `Selamat datang, ${userDetail.username}!`,
-                    });
-                } else {
-                    // If user is not found by username either, then the credential is truly invalid.
-                    throw new Error('Invalid credentials'); 
-                }
-            } catch (secondError) {
-                // If the second attempt also fails.
-                toast({
-                    variant: 'destructive',
-                    title: 'Login Gagal',
-                    description: 'NIK/Username atau password yang Anda masukkan salah.',
-                });
-            }
-        } else {
-            // Handle other Firebase auth errors (e.g., network issues)
-            console.error("Login process error:", error);
-            toast({
-                variant: 'destructive',
-                title: 'Login Gagal',
-                description: 'Terjadi kesalahan saat mencoba login. Periksa koneksi Anda.',
-            });
+        console.error("Login process error:", error);
+        let description = 'Terjadi kesalahan saat mencoba login. Periksa koneksi Anda.';
+        if (error.message === 'Invalid credentials' || error.code === 'auth/invalid-credential') {
+            description = 'NIK/Username atau password yang Anda masukkan salah.';
         }
+        
+        toast({
+            variant: 'destructive',
+            title: 'Login Gagal',
+            description,
+        });
     } finally {
         setIsLoggingIn(false);
     }
