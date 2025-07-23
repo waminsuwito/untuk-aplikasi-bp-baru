@@ -1,0 +1,22 @@
+{
+  "rules": {
+    "realtime": {
+      "weights": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "print_jobs": {
+      "$location": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "vehicle_positions": {
+      "$location": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}
