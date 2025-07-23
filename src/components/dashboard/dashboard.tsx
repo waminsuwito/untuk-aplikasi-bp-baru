@@ -113,36 +113,38 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    // This is the crucial change: only proceed if auth is done and we have a user.
-    if (!isAuthLoading && user) {
-      // Initialize database connection *inside* the effect, only when safe.
-      const db = getDatabase(); 
-      const weightsRef = ref(db, 'weights');
-      
-      const unsubscribe = onValue(weightsRef, (snapshot) => {
+    if (isAuthLoading) return;
+    if (!user) {
+        // No user logged in, do not attempt to connect to DB.
+        return;
+    }
+
+    const db = getDatabase();
+    const weightsRef = ref(db, 'weights');
+
+    const listener = onValue(weightsRef, (snapshot) => {
         if (!snapshot.exists()) {
-          addLog("Inisialisasi data timbangan...", "text-blue-400");
-          set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
+            addLog("Inisialisasi data timbangan...", "text-blue-400");
+            set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
         } else {
-          const data = snapshot.val();
-          setAggregateWeight(data.aggregate || 0);
-          setAirWeight(data.air || 0);
-          setSemenWeight(data.semen || 0);
+            const data = snapshot.val();
+            setAggregateWeight(data.aggregate || 0);
+            setAirWeight(data.air || 0);
+            setSemenWeight(data.semen || 0);
         }
-      }, (error) => {
+    }, (error) => {
         console.error("Firebase weight listener error:", error);
         toast({
-          variant: 'destructive',
-          title: 'Koneksi Timbangan Gagal',
-          description: `Tidak dapat memuat data timbangan: ${error.message}`
+            variant: 'destructive',
+            title: 'Koneksi Timbangan Gagal',
+            description: `Tidak dapat memuat data timbangan: ${error.message}`
         });
-      });
+    });
 
-      // Cleanup function: This detaches the listener when the component unmounts or user logs out.
-      return () => {
-        off(weightsRef, 'value', unsubscribe);
-      };
-    }
+    // Cleanup function to detach the listener
+    return () => {
+        off(weightsRef, 'value', listener);
+    };
   }, [user, isAuthLoading, toast]);
 
 
@@ -445,12 +447,12 @@ export function Dashboard() {
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 lg:col-span-9">
           <WeightDisplayPanel
-              aggregateWeight={aggregateWeight}
-              airWeight={airWeight}
-              semenWeight={semenWeight}
-              targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2 + currentTargetWeights.batu3 + currentTargetWeights.batu4}
-              targetAir={currentTargetWeights.air}
-              targetSemen={currentTargetWeights.semen}
+            aggregateWeight={aggregateWeight}
+            airWeight={airWeight}
+            semenWeight={semenWeight}
+            targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2 + currentTargetWeights.batu3 + currentTargetWeights.batu4}
+            targetAir={currentTargetWeights.air}
+            targetSemen={currentTargetWeights.semen}
           />
         </div>
         <div className="col-span-12 lg:col-span-3">
