@@ -23,7 +23,6 @@
     --border: 180 90% 45% / 0.2;
     --input: 217 33% 17%;
     --ring: 180 90% 50%;
-    --radius: 0.75rem;
 
     --chart-1: 180 90% 45%;
     --chart-2: 0 84% 60%;
@@ -72,12 +71,12 @@
   }
   .digital-display-value {
     @apply text-5xl font-bold;
-    color: hsl(var(--primary));
-    text-shadow: 0 0 8px hsl(var(--primary)), 0 0 12px hsl(var(--primary));
+    color: hsl(173, 100%, 75%);
+    text-shadow: 0 0 5px hsl(173, 100%, 85%), 0 0 10px hsl(173, 100%, 75%), 0 0 20px hsl(var(--primary));
   }
   .digital-display-unit {
     @apply text-xl opacity-80;
-    color: hsl(var(--primary));
+    color: hsl(173, 100%, 75%);
   }
 }
 
