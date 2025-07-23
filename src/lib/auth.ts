@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { type User, type Jabatan, userLocations, jabatanOptions } from '@/lib/types';
@@ -8,54 +7,53 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassw
 import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBatch, query, where, limit } from 'firebase/firestore';
 
 // The initial set of users to seed the application with if none are found.
-const initialUsers: User[] = [
+const initialUsers: Omit<User, 'id'>[] = [
   // Original Users
-  { id: 'owner-main', username: 'owner', password: '123456', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'OWNER-001' },
-  { id: 'superadmin-main', username: 'admin', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'SUPER-001' },
-  { id: 'op-1', username: 'mirul', password: '123456', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'OP-001' },
-  { id: 'transporter-1', username: 'transporter', password: '123456', jabatan: 'TRANSPORTER', location: 'BP PEKANBARU', nik: 'TRN-001' },
+  { username: 'owner', password: '123456', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'OWNER-001' },
+  { username: 'admin', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'SUPER-001' },
+  { username: 'mirul', password: '123456', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'OP-001' },
+  { username: 'transporter', password: '123456', jabatan: 'TRANSPORTER', location: 'BP PEKANBARU', nik: 'TRN-001' },
   
   // New Test Users for Each Role
-  { id: 'test-owner', username: 'test_owner', password: '123456', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'T-OWN' },
-  { id: 'test-super_admin', username: 'test_super_admin', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'T-SA' },
-  { id: 'test-admin_bp', username: 'test_admin_bp', password: '123456', jabatan: 'ADMIN BP', location: 'BP DUMAI', nik: 'T-ABP' },
-  { id: 'test-admin_logistik', username: 'test_admin_logistik', password: '123456', jabatan: 'ADMIN LOGISTIK', location: 'BP BAUNG', nik: 'T-ALOG' },
-  { id: 'test-admin_precast', username: 'test_admin_precast', password: '123456', jabatan: 'ADMIN PRECAST', location: 'BP PEKANBARU', nik: 'T-APRE' },
-  { id: 'test-admin_qc', username: 'test_admin_qc', password: '123456', jabatan: 'ADMIN QC', location: 'BP DUMAI', nik: 'T-AQC' },
-  { id: 'test-helper', username: 'test_helper', password: '123456', jabatan: 'HELPER', location: 'BP BAUNG', nik: 'T-HELP' },
-  { id: 'test-helper_bp', username: 'test_helper_bp', password: '123456', jabatan: 'HELPER BP', location: 'BP PEKANBARU', nik: 'T-HBP' },
-  { id: 'test-helper_cp', username: 'test_helper_cp', password: '123456', jabatan: 'HELPER CP', location: 'BP DUMAI', nik: 'T-HCP' },
-  { id: 'test-helper_laborat', username: 'test_helper_laborat', password: '123456', jabatan: 'HELPER LABORAT', location: 'BP BAUNG', nik: 'T-HLAB' },
-  { id: 'test-helper_las', username: 'test_helper_las', password: '123456', jabatan: 'HELPER LAS', location: 'BP PEKANBARU', nik: 'T-HLAS' },
-  { id: 'test-helper_precast', username: 'test_helper_precast', password: '123456', jabatan: 'HELPER PRECAST', location: 'BP DUMAI', nik: 'T-HPRE' },
-  { id: 'test-helper_tambal_ban', username: 'test_helper_tambal_ban', password: '123456', jabatan: 'HELPER TAMBAL BAN', location: 'BP BAUNG', nik: 'T-HTB' },
-  { id: 'test-hrd', username: 'test_hrd', password: '123456', jabatan: 'HRD', location: 'BP PEKANBARU', nik: 'T-HRD' },
-  { id: 'test-hse_k3', username: 'test_hse_k3', password: '123456', jabatan: 'HSE/K3', location: 'BP DUMAI', nik: 'T-HSE' },
-  { id: 'test-kep_koor_bp', username: 'test_kep_koor_bp', password: '123456', jabatan: 'KEP KOOR BP', location: 'BP BAUNG', nik: 'T-KKBP' },
-  { id: 'test-kep_koor_qc', username: 'test_kep_koor_qc', password: '123456', jabatan: 'KEP KOOR QC', location: 'BP PEKANBARU', nik: 'T-KKQC' },
-  { id: 'test-kep_koor_teknik', username: 'test_kep_koor_teknik', password: '123456', jabatan: 'KEP KOOR TEKNIK', location: 'BP DUMAI', nik: 'T-KKT' },
-  { id: 'test-kepala_bp', username: 'test_kepala_bp', password: '123456', jabatan: 'KEPALA BP', location: 'BP BAUNG', nik: 'T-KBP' },
-  { id: 'test-kepala_gudang', username: 'test_kepala_gudang', password: '123456', jabatan: 'KEPALA GUDANG', location: 'BP PEKANBARU', nik: 'T-KG' },
-  { id: 'test-kepala_mekanik', username: 'test_kepala_mekanik', password: '123456', jabatan: 'KEPALA MEKANIK', location: 'BP DUMAI', nik: 'T-KM' },
-  { id: 'test-kepala_oprator', username: 'test_kepala_oprator', password: '123456', jabatan: 'KEPALA OPRATOR', location: 'BP BAUNG', nik: 'T-KO' },
-  { id: 'test-kepala_precast', username: 'test_kepala_precast', password: '123456', jabatan: 'KEPALA PRECAST', location: 'BP PEKANBARU', nik: 'T-KPRE' },
-  { id: 'test-kepala_sopir', username: 'test_kepala_sopir', password: '123456', jabatan: 'KEPALA SOPIR', location: 'BP DUMAI', nik: 'T-KS' },
-  { id: 'test-kepala_workshop', username: 'test_kepala_workshop', password: '123456', jabatan: 'KEPALA WORKSHOP', location: 'BP BAUNG', nik: 'T-KW' },
-  { id: 'test-layar_monitor', username: 'test_layar_monitor', password: '123456', jabatan: 'LAYAR MONITOR', location: 'BP PEKANBARU', nik: 'T-LM' },
-  { id: 'test-logistik_material', username: 'test_logistik_material', password: '123456', jabatan: 'LOGISTIK MATERIAL', location: 'BP DUMAI', nik: 'T-LMAT' },
-  { id: 'test-oprator_bata_ringan', username: 'test_oprator_bata_ringan', password: '123456', jabatan: 'OPRATOR BATA RINGAN', location: 'BP BAUNG', nik: 'T-OBR' },
-  { id: 'test-oprator_bp', username: 'test_oprator_bp', password: '123456', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'T-OBP' },
-  { id: 'test-oprator_cp', username: 'test_oprator_cp', password: '123456', jabatan: 'OPRATOR CP', location: 'BP DUMAI', nik: 'T-OCP' },
-  { id: 'test-oprator_loader', username: 'test_oprator_loader', password: '123456', jabatan: 'OPRATOR LOADER', location: 'BP BAUNG', nik: 'T-OL' },
-  { id: 'test-oprator_paving', username: 'test_oprator_paving', password: '123456', jabatan: 'OPRATOR PAVING', location: 'BP PEKANBARU', nik: 'T-OPAV' },
-  { id: 'test-qc', username: 'test_qc', password: '123456', jabatan: 'QC', location: 'BP DUMAI', nik: 'T-QC' },
-  { id: 'test-sopir_dt', username: 'test_sopir_dt', password: '123456', jabatan: 'SOPIR DT', location: 'BP BAUNG', nik: 'T-SDT' },
-  { id: 'test-sopir_tm', username: 'test_sopir_tm', password: '123456', jabatan: 'SOPIR TM', location: 'BP PEKANBARU', nik: 'T-STM' },
-  { id: 'test-transporter', username: 'test_transporter', password: '123456', jabatan: 'TRANSPORTER', location: 'BP DUMAI', nik: 'T-TRN' },
-  { id: 'test-tukang_bobok', username: 'test_tukang_bobok', password: '123456', jabatan: 'TUKANG BOBOK', location: 'BP BAUNG', nik: 'T-TB' },
-  { id: 'test-tukang_las', username: 'test_tukang_las', password: '123456', jabatan: 'TUKANG LAS', location: 'BP PEKANBARU', nik: 'T-TL' }
+  { username: 'test_owner', password: '123456', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'T-OWN' },
+  { username: 'test_super_admin', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'T-SA' },
+  { username: 'test_admin_bp', password: '123456', jabatan: 'ADMIN BP', location: 'BP DUMAI', nik: 'T-ABP' },
+  { username: 'test_admin_logistik', password: '123456', jabatan: 'ADMIN LOGISTIK', location: 'BP BAUNG', nik: 'T-ALOG' },
+  { username: 'test_admin_precast', password: '123456', jabatan: 'ADMIN PRECAST', location: 'BP PEKANBARU', nik: 'T-APRE' },
+  { username: 'test_admin_qc', password: '123456', jabatan: 'ADMIN QC', location: 'BP DUMAI', nik: 'T-AQC' },
+  { username: 'test_helper', password: '123456', jabatan: 'HELPER', location: 'BP BAUNG', nik: 'T-HELP' },
+  { username: 'test_helper_bp', password: '123456', jabatan: 'HELPER BP', location: 'BP PEKANBARU', nik: 'T-HBP' },
+  { username: 'test_helper_cp', password: '123456', jabatan: 'HELPER CP', location: 'BP DUMAI', nik: 'T-HCP' },
+  { username: 'test_helper_laborat', password: '123456', jabatan: 'HELPER LABORAT', location: 'BP BAUNG', nik: 'T-HLAB' },
+  { username: 'test_helper_las', password: '123456', jabatan: 'HELPER LAS', location: 'BP PEKANBARU', nik: 'T-HLAS' },
+  { username: 'test_helper_precast', password: '123456', jabatan: 'HELPER PRECAST', location: 'BP DUMAI', nik: 'T-HPRE' },
+  { username: 'test_helper_tambal_ban', password: '123456', jabatan: 'HELPER TAMBAL BAN', location: 'BP BAUNG', nik: 'T-HTB' },
+  { username: 'test_hrd', password: '123456', jabatan: 'HRD', location: 'BP PEKANBARU', nik: 'T-HRD' },
+  { username: 'test_hse_k3', password: '123456', jabatan: 'HSE/K3', location: 'BP DUMAI', nik: 'T-HSE' },
+  { username: 'test_kep_koor_bp', password: '123456', jabatan: 'KEP KOOR BP', location: 'BP BAUNG', nik: 'T-KKBP' },
+  { username: 'test_kep_koor_qc', password: '123456', jabatan: 'KEP KOOR QC', location: 'BP PEKANBARU', nik: 'T-KKQC' },
+  { username: 'test_kep_koor_teknik', password: '123456', jabatan: 'KEP KOOR TEKNIK', location: 'BP DUMAI', nik: 'T-KKT' },
+  { username: 'test_kepala_bp', password: '123456', jabatan: 'KEPALA BP', location: 'BP BAUNG', nik: 'T-KBP' },
+  { username: 'test_kepala_gudang', password: '123456', jabatan: 'KEPALA GUDANG', location: 'BP PEKANBARU', nik: 'T-KG' },
+  { username: 'test_kepala_mekanik', password: '123456', jabatan: 'KEPALA MEKANIK', location: 'BP DUMAI', nik: 'T-KM' },
+  { username: 'test_kepala_oprator', password: '123456', jabatan: 'KEPALA OPRATOR', location: 'BP BAUNG', nik: 'T-KO' },
+  { username: 'test_kepala_precast', password: '123456', jabatan: 'KEPALA PRECAST', location: 'BP PEKANBARU', nik: 'T-KPRE' },
+  { username: 'test_kepala_sopir', password: '123456', jabatan: 'KEPALA SOPIR', location: 'BP DUMAI', nik: 'T-KS' },
+  { username: 'test_kepala_workshop', password: '123456', jabatan: 'KEPALA WORKSHOP', location: 'BP BAUNG', nik: 'T-KW' },
+  { username: 'test_layar_monitor', password: '123456', jabatan: 'LAYAR MONITOR', location: 'BP PEKANBARU', nik: 'T-LM' },
+  { username: 'test_logistik_material', password: '123456', jabatan: 'LOGISTIK MATERIAL', location: 'BP DUMAI', nik: 'T-LMAT' },
+  { username: 'test_oprator_bata_ringan', password: '123456', jabatan: 'OPRATOR BATA RINGAN', location: 'BP BAUNG', nik: 'T-OBR' },
+  { username: 'test_oprator_bp', password: '123456', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'T-OBP' },
+  { username: 'test_oprator_cp', password: '123456', jabatan: 'OPRATOR CP', location: 'BP DUMAI', nik: 'T-OCP' },
+  { username: 'test_oprator_loader', password: '123456', jabatan: 'OPRATOR LOADER', location: 'BP BAUNG', nik: 'T-OL' },
+  { username: 'test_oprator_paving', password: '123456', jabatan: 'OPRATOR PAVING', location: 'BP PEKANBARU', nik: 'T-OPAV' },
+  { username: 'test_qc', password: '123456', jabatan: 'QC', location: 'BP DUMAI', nik: 'T-QC' },
+  { username: 'test_sopir_dt', password: '123456', jabatan: 'SOPIR DT', location: 'BP BAUNG', nik: 'T-SDT' },
+  { username: 'test_sopir_tm', password: '123456', jabatan: 'SOPIR TM', location: 'BP PEKANBARU', nik: 'T-STM' },
+  { username: 'test_transporter', password: '123456', jabatan: 'TRANSPORTER', location: 'BP DUMAI', nik: 'T-TRN' },
+  { username: 'test_tukang_bobok', password: '123456', jabatan: 'TUKANG BOBOK', location: 'BP BAUNG', nik: 'T-TB' },
+  { username: 'test_tukang_las', password: '123456', jabatan: 'TUKANG LAS', location: 'BP PEKANBARU', nik: 'T-TL' }
 ];
-
 
 // Helper to create a valid email from a username
 const createEmail = (username: string) => `${username.replace(/\s+/g, '_').toLowerCase()}@farika-perkasa.local`;
@@ -78,6 +76,8 @@ export async function seedUsersToFirestore() {
   let successCount = 0;
   let failCount = 0;
 
+  const batch = writeBatch(firestore);
+
   for (const user of initialUsers) {
     try {
       const email = createEmail(user.username);
@@ -85,33 +85,30 @@ export async function seedUsersToFirestore() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, user.password || 'defaultPassword123');
       const authUid = userCredential.user.uid;
 
-      // Prepare user details for Firestore
+      // Prepare user details for Firestore, using the new authUid as the document ID and the 'id' field.
       const userDocRef = doc(firestore, 'users', authUid);
       const { password, ...userDataForFirestore } = user; // Exclude password from Firestore document
-      await setDoc(userDocRef, { ...userDataForFirestore, id: authUid });
+      batch.set(userDocRef, { ...userDataForFirestore, id: authUid }); // CRITICAL FIX: Save the correct authUid
 
-      console.log(`Pengguna ${user.username} berhasil diinisialisasi.`);
+      console.log(`Pengguna ${user.username} berhasil ditambahkan ke batch.`);
       successCount++;
     } catch (error: any) {
       failCount++;
-      // Ignore "email-already-in-use" as it might happen on re-runs
       if (error.code !== 'auth/email-already-in-use') {
         console.error(`Gagal membuat pengguna Auth untuk ${user.username}:`, error);
       } else {
-        console.warn(`Pengguna Auth untuk ${user.username} sudah ada. Melanjutkan...`);
-        successCount++; // Count as success if auth user already exists and we just ensure firestore doc is there.
-        try {
-            const email = createEmail(user.username);
-            const userCredential = await signInWithEmailAndPassword(auth, email, user.password || 'defaultPassword123');
-            const authUid = userCredential.user.uid;
-            const userDocRef = doc(firestore, 'users', authUid);
-             const { password, ...userDataForFirestore } = user;
-            await setDoc(userDocRef, { ...userDataForFirestore, id: authUid }, { merge: true });
-        } catch(e) {
-            console.error(`Gagal sign-in dan update data firestore untuk ${user.username}`, e);
-        }
+        console.warn(`Pengguna Auth untuk ${user.username} sudah ada.`);
       }
     }
+  }
+
+  try {
+    await batch.commit(); // Commit all user documents at once
+    console.log("Batch commit berhasil.");
+  } catch(e) {
+    console.error("Gagal melakukan batch commit ke Firestore:", e);
+    const finalMessage = `Inisialisasi Gagal Total: Tidak dapat menulis ke Firestore. Berhasil: 0, Gagal: ${initialUsers.length}.`;
+    return { success: false, message: finalMessage };
   }
 
   const finalMessage = `Inisialisasi selesai. Berhasil: ${successCount}, Gagal: ${failCount}.`;
@@ -149,7 +146,7 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
     const authUid = userCredential.user.uid;
 
     const newUser: User = {
-        id: authUid,
+        id: authUid, // CRITICAL FIX: Use the correct authUid
         username: userData.username,
         jabatan: userData.jabatan,
         location: userData.location,
@@ -165,20 +162,11 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
 export async function updateUser(userId: string, userData: Partial<Omit<User, 'id' | 'password'>>): Promise<void> {
     const userDocRef = doc(firestore, 'users', userId);
     await updateDoc(userDocRef, userData);
-
-    // Note: Changing username/email in Firebase Auth requires re-authentication and is more complex.
-    // For this app, we'll only update Firestore data. Password update is a separate function.
 }
 
 export async function deleteUser(userId: string): Promise<void> {
-    // This is a complex operation. Deleting a Firebase Auth user is irreversible and
-    // requires admin privileges, typically handled via a backend/cloud function.
-    // For a client-side only app, we will just delete the Firestore record.
     const userDocRef = doc(firestore, 'users', userId);
     await deleteDoc(userDocRef);
-    
-    // In a real app: You would call a cloud function here to delete the Auth user.
-    // e.g., `const deleteUserFn = httpsCallable(functions, 'deleteUser'); await deleteUserFn({ uid: userId });`
 }
 
 export async function changePassword(userId: string, oldPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
@@ -218,8 +206,10 @@ export async function getCurrentUserDetails(uid: string): Promise<Omit<User, 'pa
 
     if (docSnap.exists()) {
         const data = docSnap.data();
+        // Ensure the returned object has the correct ID matching the auth UID
         return { ...data, id: docSnap.id } as Omit<User, 'password'>;
     } else {
+        console.warn(`No Firestore document found for UID: ${uid}`);
         return null;
     }
 }
