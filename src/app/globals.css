@@ -71,12 +71,12 @@
   }
   .digital-display-value {
     @apply text-5xl font-bold;
-    color: hsl(173, 100%, 75%);
-    text-shadow: 0 0 5px hsl(173, 100%, 85%), 0 0 10px hsl(173, 100%, 75%), 0 0 20px hsl(var(--primary));
+    color: hsl(var(--primary));
+    text-shadow: 0 0 5px hsl(var(--primary) / 0.8), 0 0 10px hsl(var(--primary) / 0.6), 0 0 20px hsl(var(--primary) / 0.4);
   }
   .digital-display-unit {
     @apply text-xl opacity-80;
-    color: hsl(173, 100%, 75%);
+    color: hsl(var(--primary));
   }
 }
 
