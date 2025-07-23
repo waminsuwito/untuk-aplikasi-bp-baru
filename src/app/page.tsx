@@ -10,9 +10,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { verifyLogin, seedUsersToFirestore } from '@/lib/auth';
+import { seedUsersToFirestore, getUsers } from '@/lib/auth';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
 import Image from 'next/image';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+
+const createEmail = (username: string) => `${username.replace(/\s+/g, '_').toLowerCase()}@farika-perkasa.local`;
 
 export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -37,28 +41,44 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     
     try {
-        const loggedInUser = await verifyLogin(nik, password);
+        const allUsers = await getUsers();
+        const lowerCaseInput = nik.toLowerCase();
         
-        if (loggedInUser) {
-            // The AuthProvider will handle the redirect on user state change.
-            // We just need to show a toast.
-            toast({
-                title: 'Login Berhasil',
-                description: `Selamat datang, ${loggedInUser.username}!`,
-            });
-        } else {
+        const userDetail = allUsers.find(
+            u => (u.username.toLowerCase() === lowerCaseInput || (u.nik && u.nik.toLowerCase() === lowerCaseInput))
+        );
+
+        if (!userDetail) {
             toast({
                 variant: 'destructive',
                 title: 'Login Gagal',
-                description: 'NIK/Username atau password yang Anda masukkan salah.',
+                description: 'NIK/Username tidak ditemukan.',
             });
+            setIsLoggingIn(false);
+            return;
         }
-    } catch (error) {
+
+        const email = createEmail(userDetail.username);
+        // Directly try to sign in with Firebase Auth
+        await signInWithEmailAndPassword(auth, email, password);
+
+        // If signIn is successful, onAuthStateChanged in AuthProvider will handle the rest.
+        toast({
+            title: 'Login Berhasil',
+            description: `Selamat datang, ${userDetail.username}!`,
+        });
+        // No need to call setUser here, AuthProvider handles it.
+
+    } catch (error: any) {
         console.error("Login process error:", error);
+        let description = 'Terjadi kesalahan saat mencoba login.';
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+            description = 'NIK/Username atau password yang Anda masukkan salah.';
+        }
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description: 'Terjadi kesalahan saat mencoba login. Periksa koneksi Anda.',
+            description: description,
         });
     } finally {
         setIsLoggingIn(false);

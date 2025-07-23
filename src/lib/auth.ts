@@ -66,7 +66,7 @@ const createEmail = (username: string) => `${username.replace(/\s+/g, '_').toLow
  */
 export async function seedUsersToFirestore() {
   const usersRef = collection(firestore, 'users');
-  const existingUsersSnapshot = await getDocs(usersRef);
+  const existingUsersSnapshot = await getDocs(query(usersRef, limit(1)));
 
   if (!existingUsersSnapshot.empty) {
     const message = "Database 'users' sudah berisi data. Proses inisialisasi dilewati.";
@@ -99,6 +99,17 @@ export async function seedUsersToFirestore() {
         console.error(`Gagal membuat pengguna Auth untuk ${user.username}:`, error);
       } else {
         console.warn(`Pengguna Auth untuk ${user.username} sudah ada. Melanjutkan...`);
+        successCount++; // Count as success if auth user already exists and we just ensure firestore doc is there.
+        try {
+            const email = createEmail(user.username);
+            const userCredential = await signInWithEmailAndPassword(auth, email, user.password || 'defaultPassword123');
+            const authUid = userCredential.user.uid;
+            const userDocRef = doc(firestore, 'users', authUid);
+             const { password, ...userDataForFirestore } = user;
+            await setDoc(userDocRef, { ...userDataForFirestore, id: authUid }, { merge: true });
+        } catch(e) {
+            console.error(`Gagal sign-in dan update data firestore untuk ${user.username}`, e);
+        }
       }
     }
   }
@@ -113,49 +124,17 @@ export async function seedUsersToFirestore() {
  * @returns {Promise<User[]>} An array of user objects.
  */
 export async function getUsers(): Promise<User[]> {
-    const usersRef = collection(firestore, 'users');
-    const snapshot = await getDocs(usersRef);
-    return snapshot.docs.map(doc => doc.data() as User);
-}
-
-/**
- * Verifies user login against Firebase Auth and retrieves user data from Firestore.
- * This function now first finds the user in Firestore to get their email, then attempts to sign in.
- * @param nikOrUsername The user's NIK or username.
- * @param password The user's password.
- * @returns {Promise<Omit<User, 'password'> | null>} The user object without the password, or null if login fails.
- */
-export async function verifyLogin(nikOrUsername: string, password: string): Promise<Omit<User, 'password'> | null> {
-    const allUsers = await getUsers();
-    const lowerCaseInput = nikOrUsername.toLowerCase();
-    
-    // Find the user in our Firestore user list
-    const userDetail = allUsers.find(
-        u => (u.username.toLowerCase() === lowerCaseInput || (u.nik && u.nik.toLowerCase() === lowerCaseInput))
-    );
-
-    if (!userDetail) {
-        console.error("Login Gagal: Detail pengguna tidak ditemukan di Firestore untuk input:", nikOrUsername);
-        return null;
-    }
-    
     try {
-        const email = createEmail(userDetail.username);
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        
-        // On successful auth, refetch the details to ensure we have the right ones
-        const loggedInUserDetails = await getCurrentUserDetails(userCredential.user.uid);
-        
-        if (loggedInUserDetails) {
-            return loggedInUserDetails;
-        }
-        
-        console.error("Login Gagal: Auth berhasil tapi tidak ada detail pengguna di Firestore untuk UID:", userCredential.user.uid);
-        await signOut(auth); // Sign out if data is inconsistent
-        return null;
-    } catch (error) {
-        console.error("Firebase login gagal:", error);
-        return null;
+      const usersRef = collection(firestore, 'users');
+      const snapshot = await getDocs(usersRef);
+      if (snapshot.empty) {
+        console.log("No users found in Firestore. Seeding might be needed.");
+        return [];
+      }
+      return snapshot.docs.map(doc => doc.data() as User);
+    } catch (e) {
+      console.error("Error getting users from firestore", e);
+      return [];
     }
 }
 
