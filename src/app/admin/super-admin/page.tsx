@@ -64,7 +64,10 @@ export default function SuperAdminPage() {
         nik: data.nik,
       };
       if (data.password) {
-        userDataToUpdate.password = data.password;
+        // Password updates for existing users should be handled separately
+        // via a dedicated "change password" flow for security reasons.
+        // Here, we just log a warning if a password was entered for an existing user.
+        console.warn("Password change attempt during user edit ignored. Use a dedicated password change function.");
       }
       await updateUser(userId, userDataToUpdate);
       toast({ title: 'User Updated', description: `User "${data.username}" has been updated.` });
@@ -84,8 +87,12 @@ export default function SuperAdminPage() {
         location: data.location,
         nik: data.nik,
       };
-      await addUser(newUser);
-      toast({ title: 'User Created', description: `User "${data.username}" has been created.` });
+      const result = await addUser(newUser);
+      if (result) {
+        toast({ title: 'User Created', description: `User "${data.username}" has been created.` });
+      } else {
+        toast({ variant: 'destructive', title: 'Creation Failed', description: `Could not create user. The username might already exist in Firebase Auth.`});
+      }
     }
     
     await fetchUsers();

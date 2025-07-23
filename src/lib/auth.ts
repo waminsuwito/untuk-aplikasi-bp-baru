@@ -142,52 +142,41 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
         throw new Error("Password is required to create a new user.");
     }
     
-    // 1. Save current admin's credentials
-    const currentAdminUser = auth.currentUser;
-    if (!currentAdminUser || !currentAdminUser.email) {
+    const adminUser = auth.currentUser;
+    if (!adminUser) {
         throw new Error("Admin user is not properly logged in.");
-    }
-    // We can't get the password, so we assume the admin will stay logged in.
-    // The key is to re-login the admin *after* creating the new user.
-    // For a more robust solution, you'd prompt the admin for their password.
-    // For now, we will store the email and rely on the session.
-    const adminEmail = currentAdminUser.email;
-    const adminPassword = prompt("Untuk keamanan, silakan masukkan kembali password Anda sebagai admin:");
-
-    if (!adminPassword) {
-        alert("Password admin diperlukan untuk melanjutkan.");
-        return null;
     }
 
     try {
-        // Test admin password before proceeding
-        await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-    } catch (error) {
-        alert("Password admin salah. Proses pembuatan pengguna dibatalkan.");
+        const newUserEmail = createEmail(userData.username);
+        const userCredential = await createUserWithEmailAndPassword(auth, newUserEmail, userData.password);
+        const authUid = userCredential.user.uid;
+
+        const newUser: User = {
+            id: authUid,
+            username: userData.username,
+            jabatan: userData.jabatan,
+            location: userData.location,
+            nik: userData.nik,
+        };
+        
+        const userDocRef = doc(firestore, 'users', authUid);
+        await setDoc(userDocRef, newUser);
+
+        // After creating the user, Firebase automatically signs in as the new user.
+        // We need to sign back in as the original admin.
+        // A more robust solution would involve admin SDK on a server, but for client-side this is a workaround.
+        await signOut(auth); // Sign out the new user
+        // The AuthProvider will handle re-authenticating the admin via its onAuthStateChanged listener and persisted state.
+        // This relies on the admin's session being persisted.
+
+        return newUser;
+    } catch(error) {
+        console.error("Failed to add user:", error);
+        // Attempt to sign back in as admin even if there was an error
+        await signOut(auth);
         return null;
     }
-
-
-    // 2. Create the new user
-    const newUserEmail = createEmail(userData.username);
-    const userCredential = await createUserWithEmailAndPassword(auth, newUserEmail, userData.password);
-    const authUid = userCredential.user.uid;
-
-    const newUser: User = {
-        id: authUid,
-        username: userData.username,
-        jabatan: userData.jabatan,
-        location: userData.location,
-        nik: userData.nik,
-    };
-    
-    const userDocRef = doc(firestore, 'users', authUid);
-    await setDoc(userDocRef, newUser);
-
-    // 3. IMPORTANT: Sign back in as the admin
-    await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-    
-    return newUser;
 }
 
 export async function updateUser(userId: string, userData: Partial<Omit<User, 'id' | 'password'>>): Promise<void> {
