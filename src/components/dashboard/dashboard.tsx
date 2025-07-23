@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getDatabase, ref, onValue, set, off } from 'firebase/database';
+import { getDatabase, ref, onValue, set, off, Database } from 'firebase/database';
 import { WeightDisplayPanel } from './material-inventory';
 import { ControlPanel } from './control-panel';
 import { StatusPanel, type TimerDisplayState } from './status-panel';
@@ -13,7 +14,7 @@ import type { MixingProcessConfig, MixerTimerConfig } from '@/lib/config';
 import { useAuth } from '@/context/auth-provider';
 import type { JobMixFormula, ScheduleSheetRow, ProductionHistoryEntry, PrintJobData } from '@/lib/types';
 import { getFormulas } from '@/lib/formula';
-import { auth, database } from '@/lib/firebase';
+import { auth, database as firebaseDatabase } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
@@ -112,14 +113,15 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    // Only establish connection if a user is logged in and auth is no longer loading.
-    if (user && !isAuthLoading) {
-      const db = getDatabase();
+    // This is the crucial change: only proceed if auth is done and we have a user.
+    if (!isAuthLoading && user) {
+      // Initialize database connection *inside* the effect, only when safe.
+      const db = getDatabase(); 
       const weightsRef = ref(db, 'weights');
       
       const unsubscribe = onValue(weightsRef, (snapshot) => {
         if (!snapshot.exists()) {
-          // If data doesn't exist, initialize it safely.
+          addLog("Inisialisasi data timbangan...", "text-blue-400");
           set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
         } else {
           const data = snapshot.val();
@@ -136,13 +138,12 @@ export function Dashboard() {
         });
       });
 
-      // Cleanup function: This is crucial. It detaches the listener
-      // when the component unmounts or when the user logs out.
+      // Cleanup function: This detaches the listener when the component unmounts or user logs out.
       return () => {
         off(weightsRef, 'value', unsubscribe);
       };
     }
-  }, [user, isAuthLoading, toast]); // Dependency on user and isAuthLoading is key.
+  }, [user, isAuthLoading, toast]);
 
 
   useEffect(() => {
@@ -342,7 +343,7 @@ export function Dashboard() {
               operatorName: user.username,
               payload: finalData
             };
-            const printJobRef = ref(database, `print_jobs/${user.location}/${finalData.jobId}`);
+            const printJobRef = ref(firebaseDatabase, `print_jobs/${user.location}/${finalData.jobId}`);
             set(printJobRef);
             addLog(`Notifikasi cetak dikirim ke Admin BP`, 'text-blue-400');
           } catch (error) {
