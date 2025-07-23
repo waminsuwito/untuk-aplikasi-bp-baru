@@ -14,10 +14,12 @@ import { ClipboardCheck, Camera, Loader2, Upload, CheckCircle } from 'lucide-rea
 import type { TruckChecklistItem, TruckChecklistReport, ChecklistStatus, UserLocation, WorkOrder } from '@/lib/types';
 import Image from 'next/image';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { firestore } from '@/lib/firebase';
+import { collection, doc, getDoc, setDoc, query, where, getDocs } from 'firebase/firestore';
 
 
-const CHECKLIST_STORAGE_KEY = 'app-loader-checklists';
-const WORK_ORDER_STORAGE_KEY = 'app-work-orders';
+const CHECKLIST_COLLECTION = 'loader-checklists';
+const WORK_ORDER_COLLECTION = 'work-orders';
 
 const checklistItemsDefinition = [
     { id: 'oli_mesin', label: 'Level Oli Mesin' },
@@ -49,19 +51,17 @@ export default function ChecklistHarianLoaderPage() {
 
      useEffect(() => {
         if (user) {
-            try {
+            const fetchTodaysReport = async () => {
                 const dailyKey = getDailyChecklistKey(user.id);
-                const storedGlobal = localStorage.getItem(CHECKLIST_STORAGE_KEY);
-                const allGlobalReports: TruckChecklistReport[] = storedGlobal ? JSON.parse(storedGlobal) : [];
-                const todaysReport = allGlobalReports.find(r => r.id === dailyKey);
-                
-                if (todaysReport) {
-                    setChecklistItems(todaysReport.items);
-                    setLastSubmissionTime(new Date(todaysReport.timestamp));
+                const docRef = doc(firestore, CHECKLIST_COLLECTION, dailyKey);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const report = docSnap.data() as TruckChecklistReport;
+                    setChecklistItems(report.items);
+                    setLastSubmissionTime(new Date(report.timestamp));
                 }
-            } catch (error) {
-                console.error("Failed to load today's checklist report", error);
-            }
+            };
+            fetchTodaysReport();
         }
     }, [user]);
 
@@ -135,15 +135,26 @@ export default function ChecklistHarianLoaderPage() {
         );
     };
     
-    const createWorkOrderFromChecklist = (report: TruckChecklistReport) => {
+    const createWorkOrderFromChecklist = async (report: TruckChecklistReport) => {
         const damagedItems = report.items.filter(item => item.status === 'rusak' || item.status === 'perlu_perhatian');
 
         if (damagedItems.length === 0) {
             return;
         }
 
+        const workOrderRef = collection(firestore, WORK_ORDER_COLLECTION);
+        const workOrderId = `WO-${report.id}`;
+        
+        const existingWoQuery = query(workOrderRef, where("id", "==", workOrderId));
+        const existingWoSnapshot = await getDocs(existingWoQuery);
+
+        if (!existingWoSnapshot.empty) {
+            console.log(`Work Order with ID ${workOrderId} already exists.`);
+            return;
+        }
+
         const newWorkOrder: WorkOrder = {
-            id: `WO-${report.id}`,
+            id: workOrderId,
             assignedMechanics: [],
             vehicle: {
                 reportId: report.id,
@@ -161,24 +172,17 @@ export default function ChecklistHarianLoaderPage() {
         };
 
         try {
-            const storedWorkOrders = localStorage.getItem(WORK_ORDER_STORAGE_KEY);
-            const allWorkOrders: WorkOrder[] = storedWorkOrders ? JSON.parse(storedWorkOrders) : [];
-            
-            const woExists = allWorkOrders.some(wo => wo.id === newWorkOrder.id);
-            if (!woExists) {
-                allWorkOrders.push(newWorkOrder);
-                localStorage.setItem(WORK_ORDER_STORAGE_KEY, JSON.stringify(allWorkOrders));
-                toast({
-                    title: "Work Order Dibuat",
-                    description: `Laporan kerusakan otomatis dibuat untuk Mekanik.`,
-                });
-            }
+            await setDoc(doc(workOrderRef, workOrderId), newWorkOrder);
+            toast({
+                title: "Work Order Dibuat",
+                description: `Laporan kerusakan otomatis dibuat untuk Mekanik.`,
+            });
         } catch(e) {
             console.error("Failed to create automatic Work Order", e);
         }
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!user || !user.nik || !user.location) {
             toast({ variant: 'destructive', title: 'Error', description: 'Data pengguna tidak valid.' });
             return;
@@ -195,10 +199,6 @@ export default function ChecklistHarianLoaderPage() {
         const dailyKey = getDailyChecklistKey(user.id);
         
         try {
-            const storedGlobal = localStorage.getItem(CHECKLIST_STORAGE_KEY);
-            let allGlobalReports: TruckChecklistReport[] = storedGlobal ? JSON.parse(storedGlobal) : [];
-            const existingReportIndex = allGlobalReports.findIndex(r => r.id === dailyKey);
-
             const report: TruckChecklistReport = {
                 id: dailyKey,
                 userId: user.id,
@@ -210,18 +210,13 @@ export default function ChecklistHarianLoaderPage() {
                 vehicleType: 'loader',
             };
             
-            if (existingReportIndex > -1) {
-                allGlobalReports[existingReportIndex] = report;
-            } else {
-                allGlobalReports.push(report);
-            }
-            
-            localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(allGlobalReports));
+            const docRef = doc(firestore, CHECKLIST_COLLECTION, dailyKey);
+            await setDoc(docRef, report);
 
             toast({ title: 'Berhasil', description: 'Checklist harian berhasil dikirim.' });
             setLastSubmissionTime(submissionTime);
 
-            createWorkOrderFromChecklist(report);
+            await createWorkOrderFromChecklist(report);
 
         } catch (error) {
             console.error("Failed to save checklist report", error);
