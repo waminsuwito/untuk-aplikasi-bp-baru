@@ -132,6 +132,7 @@ export interface BongkarMaterial {
   status: BongkarStatus;
   waktuMulaiIstirahat: string | null;
   totalIstirahatMs: number;
+  location: UserLocation; // Added location
 }
 
 export interface AttendanceLocation {
@@ -142,6 +143,7 @@ export interface AttendanceLocation {
 }
 
 export interface GlobalAttendanceRecord {
+  id: string; // e.g., NIK-YYYY-MM-DD
   nik: string;
   nama: string;
   location: UserLocation;
@@ -183,6 +185,7 @@ export interface DailyActivity {
 }
 
 export interface DailyActivityReport {
+  id: string; // e.g., userId-YYYY-MM-DD
   userId: string;
   nik: string;
   username: string;
@@ -231,6 +234,7 @@ export interface TruckChecklistReport {
   location: UserLocation;
   timestamp: string; // ISO String of submission time
   items: TruckChecklistItem[];
+  vehicleType: 'tm' | 'loader';
 }
 
 export type ScheduleStatus = 'Menunggu' | 'Proses' | 'Selesai' | 'Tunda' | 'Batal';

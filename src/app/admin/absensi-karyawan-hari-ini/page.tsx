@@ -33,8 +33,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { firestore } from '@/lib/firebase';
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 
-const GLOBAL_ATTENDANCE_KEY = 'app-global-attendance-records';
 
 export default function AbsensiKaryawanHariIniPage() {
   const { user } = useAuth();
@@ -49,21 +50,27 @@ export default function AbsensiKaryawanHariIniPage() {
   useEffect(() => {
     if (!user) return;
 
-    try {
-      const storedData = localStorage.getItem(GLOBAL_ATTENDANCE_KEY);
-      if (storedData) {
-        const allRecords: GlobalAttendanceRecord[] = JSON.parse(storedData);
-        const today = format(new Date(), 'yyyy-MM-dd');
-        
-        const filteredRecords = allRecords.filter(
-          (record) => record.date === today && record.location === user.location
-        );
-        
-        setDaftarAbsensi(filteredRecords);
-      }
-    } catch (error) {
-      console.error("Failed to load global attendance data", error);
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const attendanceCollectionRef = collection(firestore, 'attendance-records');
+    
+    let q = query(attendanceCollectionRef, where('date', '==', today));
+    
+    if (user.location) {
+        q = query(q, where('location', '==', user.location));
     }
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const records: GlobalAttendanceRecord[] = [];
+        querySnapshot.forEach((doc) => {
+            records.push(doc.data() as GlobalAttendanceRecord);
+        });
+        setDaftarAbsensi(records);
+    }, (error) => {
+        console.error("Failed to fetch real-time attendance data:", error);
+    });
+
+    return () => unsubscribe();
+
   }, [user]);
 
   return (

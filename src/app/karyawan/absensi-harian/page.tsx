@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -12,17 +13,28 @@ import type { AttendanceLocation, GlobalAttendanceRecord, UserLocation } from '@
 import { useAuth } from '@/context/auth-provider';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
+import { firestore } from '@/lib/firebase';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+
 
 const ATTENDANCE_LOCATIONS_KEY = 'app-attendance-locations';
-const GLOBAL_ATTENDANCE_KEY = 'app-global-attendance-records';
 const ATTENDANCE_RADIUS_METERS = 50000; // 50km for testing
 const TIME_ZONE = 'Asia/Jakarta'; // WIB
 
-const getPersonalAttendanceKey = (userId: string) => {
+const getPersonalAttendanceDocRef = (userId: string, location: UserLocation) => {
     const now = toZonedTime(new Date(), TIME_ZONE);
     const dateStr = format(now, 'yyyy-MM-dd');
-    return `attendance-${userId}-${dateStr}`;
+    const docId = `${userId}-${dateStr}`;
+    return doc(firestore, 'locations', location, 'attendance', docId);
 };
+
+const getGlobalAttendanceDocRef = (nik: string, location: UserLocation) => {
+    const now = toZonedTime(new Date(), TIME_ZONE);
+    const dateStr = format(now, 'yyyy-MM-dd');
+    const docId = `${nik}-${dateStr}`;
+    return doc(firestore, 'attendance-records', docId);
+}
+
 
 type PersonalAttendanceRecord = {
   clockIn?: string;
@@ -51,28 +63,32 @@ export default function AttendancePage() {
 
     // Effect to load initial data
     useEffect(() => {
-        try {
-            const storedData = localStorage.getItem(ATTENDANCE_LOCATIONS_KEY);
-            if (storedData) {
-                setLocations(JSON.parse(storedData));
-            }
-        } catch (error) {
-            console.error("Failed to load attendance locations from localStorage", error);
-        }
-
-        if (user) {
-            try {
-                const personalKey = getPersonalAttendanceKey(user.id);
-                const storedRecord = localStorage.getItem(personalKey);
-                if (storedRecord) {
-                    setPersonalAttendanceRecord(JSON.parse(storedRecord));
-                } else {
-                    setPersonalAttendanceRecord(null);
+        const fetchInitialData = async () => {
+             try {
+                // This can still be from localStorage as it's a static configuration
+                const storedData = localStorage.getItem(ATTENDANCE_LOCATIONS_KEY);
+                if (storedData) {
+                    setLocations(JSON.parse(storedData));
                 }
             } catch (error) {
-                console.error("Failed to load today's attendance record", error);
+                console.error("Failed to load attendance locations from localStorage", error);
             }
-        }
+
+            if (user && user.location) {
+                try {
+                    const personalDocRef = getPersonalAttendanceDocRef(user.id, user.location);
+                    const docSnap = await getDoc(personalDocRef);
+                    if (docSnap.exists()) {
+                       setPersonalAttendanceRecord(docSnap.data() as PersonalAttendanceRecord);
+                    } else {
+                       setPersonalAttendanceRecord(null);
+                    }
+                } catch (error) {
+                    console.error("Failed to load today's attendance record", error);
+                }
+            }
+        };
+        fetchInitialData();
     }, [user]);
 
     // Effect to determine the current possible action (clock-in/clock-out)
@@ -166,22 +182,25 @@ export default function AttendancePage() {
         return null;
     };
     
-    const updateGlobalAttendance = (updateData: Partial<GlobalAttendanceRecord>) => {
-        if (!user || !user.nik) return;
+    const updateGlobalAttendance = async (updateData: Partial<GlobalAttendanceRecord>) => {
+        if (!user || !user.nik || !user.location) return;
         try {
-            const storedData = localStorage.getItem(GLOBAL_ATTENDANCE_KEY);
-            const allRecords: GlobalAttendanceRecord[] = storedData ? JSON.parse(storedData) : [];
-            const today = format(toZonedTime(new Date(), TIME_ZONE), 'yyyy-MM-dd');
-            const userRecordIndex = allRecords.findIndex(r => r.nik === user.nik && r.date === today);
+            const docRef = getGlobalAttendanceDocRef(user.nik, user.location);
+            const docSnap = await getDoc(docRef);
 
-            if (userRecordIndex > -1) {
-                allRecords[userRecordIndex] = { ...allRecords[userRecordIndex], ...updateData };
+            if (docSnap.exists()) {
+                await setDoc(docRef, updateData, { merge: true });
             } else {
+                 const now = toZonedTime(new Date(), TIME_ZONE);
+                 const dateStr = format(now, 'yyyy-MM-dd');
+                 const docId = `${user.nik}-${dateStr}`;
+
                 const newRecord: GlobalAttendanceRecord = {
+                    id: docId,
                     nik: user.nik,
                     nama: user.username,
-                    location: user.location as UserLocation,
-                    date: today,
+                    location: user.location,
+                    date: dateStr,
                     absenMasuk: null,
                     terlambat: null,
                     absenPulang: null,
@@ -190,23 +209,17 @@ export default function AttendancePage() {
                     photoPulang: null,
                     ...updateData,
                 };
-                allRecords.push(newRecord);
+                await setDoc(docRef, newRecord);
             }
-            localStorage.setItem(GLOBAL_ATTENDANCE_KEY, JSON.stringify(allRecords));
         } catch (error) {
             console.error("Failed to update global attendance", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Gagal menyimpan data absensi global.' });
         }
     };
     
-    const handleAttendance = () => {
-        if (!selectedLocation || currentAction === 'none') {
-            toast({ variant: 'destructive', title: 'Aksi Tidak Tersedia', description: 'Pastikan Anda telah memilih lokasi.' });
-            return;
-        }
-
-        if (!user || !user.nik) {
-            toast({ variant: 'destructive', title: 'Absensi Gagal', description: 'Data NIK Anda tidak ditemukan. Hubungi HRD.' });
+    const handleAttendance = async () => {
+        if (!selectedLocation || currentAction === 'none' || !user || !user.nik || !user.location) {
+            toast({ variant: 'destructive', title: 'Aksi Tidak Tersedia', description: 'Pastikan Anda telah memilih lokasi dan data pengguna valid.' });
             return;
         }
 
@@ -227,64 +240,67 @@ export default function AttendancePage() {
             return;
         }
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const now = new Date();
-                const nowZoned = toZonedTime(now, TIME_ZONE);
+        try {
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+            });
+            
+            const now = new Date();
+            const nowZoned = toZonedTime(now, TIME_ZONE);
+            
+            if (currentAction === 'clockIn') {
+                const batasMasuk = toZonedTime(new Date(), TIME_ZONE);
+                batasMasuk.setHours(7, 30, 0, 0);
                 
-                if (currentAction === 'clockIn') {
-                    const batasMasuk = toZonedTime(new Date(), TIME_ZONE);
-                    batasMasuk.setHours(7, 30, 0, 0);
-                    
-                    const isLate = nowZoned.getTime() > batasMasuk.getTime();
-                    let terlambatDuration = null;
-                    
-                    if (isLate) {
-                        const selisihMs = nowZoned.getTime() - batasMasuk.getTime();
-                        terlambatDuration = `${Math.floor(selisihMs / 60000)}m`;
-                    }
-
-                    const newPersonalRecord: PersonalAttendanceRecord = { clockIn: now.toISOString(), isLate };
-                    setPersonalAttendanceRecord(newPersonalRecord);
-                    localStorage.setItem(getPersonalAttendanceKey(user.id), JSON.stringify(newPersonalRecord));
-
-                    updateGlobalAttendance({
-                        absenMasuk: now.toISOString(),
-                        terlambat: terlambatDuration,
-                        photoMasuk: photoDataUri,
-                    });
-
-                    const toastDescription = isLate ? 'Anda tercatat terlambat hari ini.' : 'Absensi masuk berhasil dicatat.';
-                    toast({ title: 'Absensi Masuk Berhasil', description: toastDescription });
-                    setAttendanceStatus('success');
-                    setStatusMessage(`Berhasil absen masuk pada ${nowZoned.toLocaleTimeString('id-ID')}.`);
-
-                } else if (currentAction === 'clockOut') {
-                    const updatedPersonalRecord = { ...personalAttendanceRecord, clockOut: now.toISOString() };
-                    setPersonalAttendanceRecord(updatedPersonalRecord as PersonalAttendanceRecord);
-                    localStorage.setItem(getPersonalAttendanceKey(user.id), JSON.stringify(updatedPersonalRecord as PersonalAttendanceRecord));
-                    
-                    updateGlobalAttendance({ absenPulang: now.toISOString(), photoPulang: photoDataUri });
-
-                    toast({ title: 'Absensi Pulang Berhasil', description: 'Absensi pulang berhasil dicatat.' });
-                    setAttendanceStatus('success');
-                    setStatusMessage(`Berhasil absen pulang pada ${nowZoned.toLocaleTimeString('id-ID')}.`);
-                }
+                const isLate = nowZoned.getTime() > batasMasuk.getTime();
+                let terlambatDuration = null;
                 
-                setIsCheckingIn(false);
-            },
-            (error) => {
-                setIsCheckingIn(false);
-                setAttendanceStatus('failed');
-                let errMsg = 'Gagal mendapatkan lokasi. Pastikan GPS aktif dan izin lokasi diberikan.';
-                if (error.code === error.PERMISSION_DENIED) {
-                    errMsg = 'Izin lokasi ditolak. Mohon aktifkan di pengaturan browser.';
+                if (isLate) {
+                    const selisihMs = nowZoned.getTime() - batasMasuk.getTime();
+                    terlambatDuration = `${Math.floor(selisihMs / 60000)}m`;
                 }
-                setStatusMessage(errMsg);
-                toast({ variant: 'destructive', title: 'Error Lokasi', description: errMsg });
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
+
+                const newPersonalRecord: PersonalAttendanceRecord = { clockIn: now.toISOString(), isLate };
+                setPersonalAttendanceRecord(newPersonalRecord);
+                
+                const personalDocRef = getPersonalAttendanceDocRef(user.id, user.location);
+                await setDoc(personalDocRef, newPersonalRecord);
+
+                await updateGlobalAttendance({
+                    absenMasuk: now.toISOString(),
+                    terlambat: terlambatDuration,
+                    photoMasuk: photoDataUri,
+                });
+
+                const toastDescription = isLate ? 'Anda tercatat terlambat hari ini.' : 'Absensi masuk berhasil dicatat.';
+                toast({ title: 'Absensi Masuk Berhasil', description: toastDescription });
+                setAttendanceStatus('success');
+                setStatusMessage(`Berhasil absen masuk pada ${nowZoned.toLocaleTimeString('id-ID')}.`);
+
+            } else if (currentAction === 'clockOut') {
+                const updatedPersonalRecord = { ...personalAttendanceRecord, clockOut: now.toISOString() };
+                setPersonalAttendanceRecord(updatedPersonalRecord as PersonalAttendanceRecord);
+                
+                const personalDocRef = getPersonalAttendanceDocRef(user.id, user.location);
+                await setDoc(personalDocRef, { clockOut: now.toISOString() }, { merge: true });
+                
+                await updateGlobalAttendance({ absenPulang: now.toISOString(), photoPulang: photoDataUri });
+
+                toast({ title: 'Absensi Pulang Berhasil', description: 'Absensi pulang berhasil dicatat.' });
+                setAttendanceStatus('success');
+                setStatusMessage(`Berhasil absen pulang pada ${nowZoned.toLocaleTimeString('id-ID')}.`);
+            }
+        } catch (error: any) {
+            setAttendanceStatus('failed');
+            let errMsg = 'Gagal mendapatkan lokasi. Pastikan GPS aktif dan izin lokasi diberikan.';
+            if (error.code === error.PERMISSION_DENIED) {
+                errMsg = 'Izin lokasi ditolak. Mohon aktifkan di pengaturan browser.';
+            }
+            setStatusMessage(errMsg);
+            toast({ variant: 'destructive', title: 'Error Lokasi', description: errMsg });
+        } finally {
+            setIsCheckingIn(false);
+        }
     };
     
     const getButtonText = () => {
