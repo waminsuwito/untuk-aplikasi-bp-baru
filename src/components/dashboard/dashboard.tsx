@@ -120,19 +120,14 @@ export function Dashboard() {
     const db = getDatabase();
     const weightsRef = ref(db, 'weights');
 
-    let isInitialDataChecked = false;
-
     const unsubscribe = onValue(weightsRef, (snapshot) => {
-        if (!isInitialDataChecked) {
-            if (!snapshot.exists()) {
-                addLog("Inisialisasi data timbangan...", "text-blue-400");
-                set(weightsRef, { aggregate: 0, air: 0, semen: 0 }).catch(error => {
-                     toast({ variant: 'destructive', title: 'Gagal Inisialisasi', description: `Tidak dapat menulis data awal: ${error.message}` });
-                });
-            }
-            isInitialDataChecked = true;
+        if (!snapshot.exists()) {
+             addLog("Inisialisasi data timbangan...", "text-blue-400");
+             set(weightsRef, { aggregate: 0, air: 0, semen: 0 }).catch(error => {
+                 toast({ variant: 'destructive', title: 'Gagal Inisialisasi', description: `Tidak dapat menulis data awal: ${error.message}` });
+             });
         }
-
+        
         const data = snapshot.val();
         if (data) {
             setAggregateWeight(data.aggregate || 0);
@@ -451,7 +446,7 @@ export function Dashboard() {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-9">
+        <div className="col-span-12 lg:col-span-9">
           <WeightDisplayPanel
               aggregateWeight={aggregateWeight}
               airWeight={airWeight}
@@ -462,7 +457,7 @@ export function Dashboard() {
               disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
           />
         </div>
-        <div className="col-span-3">
+        <div className="col-span-12 lg:col-span-3">
           <StatusPanel 
             log={activityLog}
             timerDisplay={timerDisplay}

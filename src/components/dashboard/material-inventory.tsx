@@ -14,7 +14,7 @@ function WeightDisplay({ title, value, unit, target, disabled }: WeightDisplayPr
   const formattedValue = Math.round(value).toString();
 
   return (
-    <Card className={disabled ? '' : ''}>
+    <Card>
       <CardHeader className="p-3">
         <CardTitle className="text-center text-primary uppercase text-sm tracking-wider">{title}</CardTitle>
       </CardHeader>
