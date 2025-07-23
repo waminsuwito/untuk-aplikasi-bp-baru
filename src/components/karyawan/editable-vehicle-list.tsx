@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Save, Trash2, Printer } from 'lucide-react';
+import { Save, Trash2, Printer, ShieldX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { printElement } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -203,6 +204,34 @@ export function EditableVehicleList() {
         setIsLoading(false);
     }
   };
+
+  const handleClearAllData = async () => {
+    if (!user?.location) return;
+    setIsLoading(true);
+    try {
+        const vehiclesRef = getVehiclesCollectionRef(user.location);
+        const snapshot = await getDocs(vehiclesRef);
+        if (snapshot.empty) {
+            toast({ title: 'Tidak Ada Data', description: 'Tidak ada data armada untuk dihapus.' });
+            setIsLoading(false);
+            return;
+        }
+        
+        const batch = writeBatch(firestore);
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        
+        toast({ variant: 'destructive', title: 'Berhasil', description: `Semua data armada di lokasi ${user.location} telah dihapus.` });
+        await loadData();
+    } catch (error) {
+        console.error("Failed to clear vehicles:", error);
+        toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal menghapus data armada.' });
+    } finally {
+        setIsLoading(false);
+    }
+  };
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLButtonElement>, rowIndex: number, colIndex: number) => {
     // This logic can remain the same
@@ -245,6 +274,27 @@ export function EditableVehicleList() {
             <div className="flex-shrink-0 p-4 border-b bg-background flex justify-between items-center no-print">
                 <h2 className="text-lg font-semibold">List Armada (Lokasi: {user?.location})</h2>
                 <div className="flex gap-2">
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive">
+                                <ShieldX className="mr-2 h-4 w-4" /> Hapus Semua Armada
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>Anda Yakin?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Tindakan ini akan menghapus **SEMUA** data armada di lokasi **{user?.location}** secara permanen. Data tidak dapat dipulihkan. Lanjutkan?
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Batal</AlertDialogCancel>
+                            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleClearAllData}>
+                                Ya, Hapus Semua
+                            </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                     <Button onClick={() => printElement('editable-vehicle-list-table-container')}>
                         <Printer className="mr-2 h-4 w-4" /> Cetak
                     </Button>

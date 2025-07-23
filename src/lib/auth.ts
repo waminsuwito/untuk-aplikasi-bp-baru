@@ -9,51 +9,10 @@ import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBa
 
 // The initial set of users to seed the application with if none are found.
 const initialUsers: Omit<User, 'id'>[] = [
-  // Original Users
   { username: 'owner', password: '123456', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'OWNER-001' },
   { username: 'admin', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'SUPER-001' },
   { username: 'mirul', password: '123456', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'OP-001' },
   { username: 'transporter', password: '123456', jabatan: 'TRANSPORTER', location: 'BP PEKANBARU', nik: 'TRN-001' },
-  
-  // New Test Users for Each Role
-  { username: 'test_owner', password: '123456', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'T-OWN' },
-  { username: 'test_super_admin', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'T-SA' },
-  { username: 'test_admin_bp', password: '123456', jabatan: 'ADMIN BP', location: 'BP DUMAI', nik: 'T-ABP' },
-  { username: 'test_admin_logistik', password: '123456', jabatan: 'ADMIN LOGISTIK', location: 'BP BAUNG', nik: 'T-ALOG' },
-  { username: 'test_admin_precast', password: '123456', jabatan: 'ADMIN PRECAST', location: 'BP PEKANBARU', nik: 'T-APRE' },
-  { username: 'test_admin_qc', password: '123456', jabatan: 'ADMIN QC', location: 'BP DUMAI', nik: 'T-AQC' },
-  { username: 'test_helper', password: '123456', jabatan: 'HELPER', location: 'BP BAUNG', nik: 'T-HELP' },
-  { username: 'test_helper_bp', password: '123456', jabatan: 'HELPER BP', location: 'BP PEKANBARU', nik: 'T-HBP' },
-  { username: 'test_helper_cp', password: '123456', jabatan: 'HELPER CP', location: 'BP DUMAI', nik: 'T-HCP' },
-  { username: 'test_helper_laborat', password: '123456', jabatan: 'HELPER LABORAT', location: 'BP BAUNG', nik: 'T-HLAB' },
-  { username: 'test_helper_las', password: '123456', jabatan: 'HELPER LAS', location: 'BP PEKANBARU', nik: 'T-HLAS' },
-  { username: 'test_helper_precast', password: '123456', jabatan: 'HELPER PRECAST', location: 'BP DUMAI', nik: 'T-HPRE' },
-  { username: 'test_helper_tambal_ban', password: '123456', jabatan: 'HELPER TAMBAL BAN', location: 'BP BAUNG', nik: 'T-HTB' },
-  { username: 'test_hrd', password: '123456', jabatan: 'HRD', location: 'BP PEKANBARU', nik: 'T-HRD' },
-  { username: 'test_hse_k3', password: '123456', jabatan: 'HSE/K3', location: 'BP DUMAI', nik: 'T-HSE' },
-  { username: 'test_kep_koor_bp', password: '123456', jabatan: 'KEP KOOR BP', location: 'BP BAUNG', nik: 'T-KKBP' },
-  { username: 'test_kep_koor_qc', password: '123456', jabatan: 'KEP KOOR QC', location: 'BP PEKANBARU', nik: 'T-KKQC' },
-  { username: 'test_kep_koor_teknik', password: '123456', jabatan: 'KEP KOOR TEKNIK', location: 'BP DUMAI', nik: 'T-KKT' },
-  { username: 'test_kepala_bp', password: '123456', jabatan: 'KEPALA BP', location: 'BP BAUNG', nik: 'T-KBP' },
-  { username: 'test_kepala_gudang', password: '123456', jabatan: 'KEPALA GUDANG', location: 'BP PEKANBARU', nik: 'T-KG' },
-  { username: 'test_kepala_mekanik', password: '123456', jabatan: 'KEPALA MEKANIK', location: 'BP DUMAI', nik: 'T-KM' },
-  { username: 'test_kepala_oprator', password: '123456', jabatan: 'KEPALA OPRATOR', location: 'BP BAUNG', nik: 'T-KO' },
-  { username: 'test_kepala_precast', password: '123456', jabatan: 'KEPALA PRECAST', location: 'BP PEKANBARU', nik: 'T-KPRE' },
-  { username: 'test_kepala_sopir', password: '123456', jabatan: 'KEPALA SOPIR', location: 'BP DUMAI', nik: 'T-KS' },
-  { username: 'test_kepala_workshop', password: '123456', jabatan: 'KEPALA WORKSHOP', location: 'BP BAUNG', nik: 'T-KW' },
-  { username: 'test_layar_monitor', password: '123456', jabatan: 'LAYAR MONITOR', location: 'BP PEKANBARU', nik: 'T-LM' },
-  { username: 'test_logistik_material', password: '123456', jabatan: 'LOGISTIK MATERIAL', location: 'BP DUMAI', nik: 'T-LMAT' },
-  { username: 'test_oprator_bata_ringan', password: '123456', jabatan: 'OPRATOR BATA RINGAN', location: 'BP BAUNG', nik: 'T-OBR' },
-  { username: 'test_oprator_bp', password: '123456', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'T-OBP' },
-  { username: 'test_oprator_cp', password: '123456', jabatan: 'OPRATOR CP', location: 'BP DUMAI', nik: 'T-OCP' },
-  { username: 'test_oprator_loader', password: '123456', jabatan: 'OPRATOR LOADER', location: 'BP BAUNG', nik: 'T-OL' },
-  { username: 'test_oprator_paving', password: '123456', jabatan: 'OPRATOR PAVING', location: 'BP PEKANBARU', nik: 'T-OPAV' },
-  { username: 'test_qc', password: '123456', jabatan: 'QC', location: 'BP DUMAI', nik: 'T-QC' },
-  { username: 'test_sopir_dt', password: '123456', jabatan: 'SOPIR DT', location: 'BP BAUNG', nik: 'T-SDT' },
-  { username: 'test_sopir_tm', password: '123456', jabatan: 'SOPIR TM', location: 'BP PEKANBARU', nik: 'T-STM' },
-  { username: 'test_transporter', password: '123456', jabatan: 'TRANSPORTER', location: 'BP DUMAI', nik: 'T-TRN' },
-  { username: 'test_tukang_bobok', password: '123456', jabatan: 'TUKANG BOBOK', location: 'BP BAUNG', nik: 'T-TB' },
-  { username: 'test_tukang_las', password: '123456', jabatan: 'TUKANG LAS', location: 'BP PEKANBARU', nik: 'T-TL' }
 ];
 
 // Helper to create a valid email from a NIK. NIK is guaranteed to be unique.
@@ -65,54 +24,68 @@ export const createEmailFromNik = (nik: string) => `${nik.replace(/\s+/g, '_').t
  */
 export async function seedUsersToFirestore() {
   const usersRef = collection(firestore, 'users');
-  const existingUsersSnapshot = await getDocs(query(usersRef, limit(1)));
-
-  if (!existingUsersSnapshot.empty) {
-    const message = "Database 'users' sudah berisi data. Proses inisialisasi dilewati.";
-    console.log(message);
-    return { success: true, message };
-  }
   
-  console.log("Memulai proses inisialisasi database...");
+  // This function will now act as a RESET function.
+  // It will delete all existing users and then add the initial users.
+  // This is a destructive operation.
+  console.log("Memulai proses inisialisasi ulang database...");
+  
+  try {
+    const existingUsersSnapshot = await getDocs(usersRef);
+    const deleteBatch = writeBatch(firestore);
+    existingUsersSnapshot.forEach(doc => {
+      // Note: This does not delete the user from Firebase Auth, only Firestore.
+      // Proper multi-user deletion requires Admin SDK on a backend.
+      deleteBatch.delete(doc.ref);
+    });
+    await deleteBatch.commit();
+    console.log("Pengguna lama di Firestore telah dihapus.");
+  } catch(e) {
+    console.error("Gagal menghapus pengguna lama:", e);
+    return { success: false, message: "Gagal membersihkan database pengguna lama." };
+  }
+
+
   let successCount = 0;
   let failCount = 0;
-
-  const batch = writeBatch(firestore);
 
   for (const user of initialUsers) {
     try {
       const email = createEmailFromNik(user.nik || '');
-      // Create user in Firebase Auth first
-      const userCredential = await createUserWithEmailAndPassword(auth, email, user.password || '123456');
-      const authUid = userCredential.user.uid;
+      // We assume during a seed, it's okay if the auth user already exists.
+      // We will try to create it, and if it fails with 'email-already-in-use', we proceed.
+      let authUid: string | undefined;
 
-      // Prepare user details for Firestore, using the new authUid as the document ID and the 'id' field.
-      const userDocRef = doc(firestore, 'users', authUid);
-      const { password, ...userDataForFirestore } = user; // Exclude password from Firestore document
-      batch.set(userDocRef, { ...userDataForFirestore, id: authUid }); // CRITICAL FIX: Save the correct authUid
-
-      console.log(`Pengguna ${user.username} berhasil ditambahkan ke batch.`);
-      successCount++;
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, user.password || '123456');
+        authUid = userCredential.user.uid;
+      } catch (authError: any) {
+        if (authError.code === 'auth/email-already-in-use') {
+          console.warn(`Pengguna Auth untuk ${user.username} sudah ada. Mencari UID...`);
+          // This part is tricky without Admin SDK. For this client-side seed, we can't easily get the UID.
+          // The best approach is to let the user delete them from the Firebase Console if a full clean is needed.
+          // For now, we will skip adding to firestore if we can't create the auth user.
+          failCount++;
+          continue; 
+        } else {
+          throw authError; // Rethrow other auth errors
+        }
+      }
+      
+      if (authUid) {
+        const userDocRef = doc(firestore, 'users', authUid);
+        const { password, ...userDataForFirestore } = user;
+        await setDoc(userDocRef, { ...userDataForFirestore, id: authUid });
+        console.log(`Pengguna ${user.username} berhasil ditambahkan.`);
+        successCount++;
+      }
     } catch (error: any) {
       failCount++;
-      if (error.code !== 'auth/email-already-in-use') {
-        console.error(`Gagal membuat pengguna Auth untuk ${user.username}:`, error);
-      } else {
-        console.warn(`Pengguna Auth untuk ${user.username} sudah ada.`);
-      }
+      console.error(`Gagal memproses pengguna ${user.username}:`, error);
     }
   }
 
-  try {
-    await batch.commit(); // Commit all user documents at once
-    console.log("Batch commit berhasil.");
-  } catch(e) {
-    console.error("Gagal melakukan batch commit ke Firestore:", e);
-    const finalMessage = `Inisialisasi Gagal Total: Tidak dapat menulis ke Firestore. Berhasil: 0, Gagal: ${initialUsers.length}.`;
-    return { success: false, message: finalMessage };
-  }
-
-  const finalMessage = `Inisialisasi selesai. Berhasil: ${successCount}, Gagal: ${failCount}.`;
+  const finalMessage = `Inisialisasi selesai. Berhasil: ${successCount}, Gagal: ${failCount}. Harap dicatat: Pengguna di sistem otentikasi tidak dihapus secara otomatis.`;
   console.log(finalMessage);
   return { success: true, message: finalMessage };
 }
@@ -142,24 +115,18 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
         throw new Error("Password is required to create a new user.");
     }
     
-    // This function will be called by an authenticated admin.
-    // It will temporarily create a new user, which signs out the admin.
-    // We need to re-authenticate the admin afterward.
-    const adminCredentials = {
-      email: auth.currentUser?.email,
-      // It's not secure to handle passwords on the client-side like this.
-      // A proper solution would use a backend with Admin SDK.
-      // This is a simplified flow for this specific environment.
-      // We will skip re-authentication and let the user log in again.
-    };
-
-    if (!adminCredentials.email) {
-      throw new Error("Admin user is not logged in or email is not available.");
+    // Check for NIK uniqueness in Firestore first
+    const usersRef = collection(firestore, 'users');
+    const q = query(usersRef, where("nik", "==", userData.nik));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+        throw new Error(`NIK "${userData.nik}" sudah digunakan.`);
     }
 
     try {
         const newUserEmail = createEmailFromNik(userData.nik || '');
-        // This call might sign out the current admin user
+        // This call might sign out the current admin user if not handled properly.
+        // We assume the auth provider will handle the state change.
         const userCredential = await createUserWithEmailAndPassword(auth, newUserEmail, userData.password);
         const authUid = userCredential.user.uid;
 
@@ -173,17 +140,14 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
         
         const userDocRef = doc(firestore, 'users', authUid);
         await setDoc(userDocRef, newUser);
-
-        // IMPORTANT: The admin is now likely signed out.
-        // We will force a re-login of the admin on the UI side or let the session expire.
-        // For now, we just return the new user. The UI must handle the auth state change.
+        
         return newUser;
 
     } catch(error: any) {
         console.error("Failed to add user:", error);
-        // The error might be 'auth/email-already-in-use', which is useful feedback.
         if (error.code === 'auth/email-already-in-use') {
-          throw new Error(`NIK "${userData.nik}" sudah digunakan.`);
+          // This case should be rare now because of the Firestore check above, but it's a good fallback.
+          throw new Error(`NIK "${userData.nik}" sudah terdaftar di sistem otentikasi.`);
         }
         throw error; // Re-throw other errors
     }

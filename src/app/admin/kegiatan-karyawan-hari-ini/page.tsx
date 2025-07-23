@@ -15,8 +15,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { printElement } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { firestore } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
-const GLOBAL_ACTIVITIES_KEY = 'app-daily-activities';
+
+const ACTIVITIES_COLLECTION = 'daily-activity-reports';
 
 export default function KegiatanKaryawanHariIniPage() {
   const { user } = useAuth();
@@ -34,21 +37,30 @@ export default function KegiatanKaryawanHariIniPage() {
   useEffect(() => {
     if (!user) return;
 
-    try {
-      const storedData = localStorage.getItem(GLOBAL_ACTIVITIES_KEY);
-      if (storedData) {
-        const allReports: DailyActivityReport[] = JSON.parse(storedData);
-        const today = format(new Date(), 'yyyy-MM-dd');
-        
-        const filteredReports = allReports.filter(
-          (report) => report.date === today && report.location === user.location
-        );
-        
-        setReports(filteredReports);
-      }
-    } catch (error) {
-      console.error("Failed to load global activity data", error);
+    const fetchReports = async () => {
+        try {
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const reportsRef = collection(firestore, ACTIVITIES_COLLECTION);
+            
+            const q = query(
+                reportsRef, 
+                where('date', '==', today), 
+                where('location', '==', user.location)
+            );
+            
+            const querySnapshot = await getDocs(q);
+            const fetchedReports: DailyActivityReport[] = [];
+            querySnapshot.forEach((doc) => {
+                fetchedReports.push(doc.data() as DailyActivityReport);
+            });
+            setReports(fetchedReports);
+        } catch (error) {
+          console.error("Failed to load activity data from Firestore", error);
+        }
     }
+
+    fetchReports();
+
   }, [user]);
 
   useEffect(() => {
