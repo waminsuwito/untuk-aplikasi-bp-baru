@@ -15,7 +15,7 @@ import type { TruckChecklistItem, TruckChecklistReport, ChecklistStatus, UserLoc
 import Image from 'next/image';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { firestore } from '@/lib/firebase';
-import { collection, doc, getDoc, setDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, query, where, getDocs, updateDoc } from 'firebase/firestore';
 
 
 const CHECKLIST_COLLECTION = 'loader-checklists';
@@ -57,7 +57,7 @@ export default function ChecklistHarianLoaderPage() {
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     const report = docSnap.data() as TruckChecklistReport;
-                    setChecklistItems(report.items);
+                    // Do not lock the form, just show last submission time
                     setLastSubmissionTime(new Date(report.timestamp));
                 }
             };
@@ -136,49 +136,73 @@ export default function ChecklistHarianLoaderPage() {
     };
     
     const createWorkOrderFromChecklist = async (report: TruckChecklistReport) => {
+        if (!user) return;
         const damagedItems = report.items.filter(item => item.status === 'rusak' || item.status === 'perlu_perhatian');
-
+    
         if (damagedItems.length === 0) {
             return;
         }
-
+    
         const workOrderRef = collection(firestore, WORK_ORDER_COLLECTION);
-        const workOrderId = `WO-${report.id}`;
+        // Find if there's an existing ACTIVE work order for this user's vehicle
+        const q = query(
+            workOrderRef, 
+            where("vehicle.userId", "==", user.id), 
+            where("status", "!=", "Selesai")
+        );
         
-        const existingWoQuery = query(workOrderRef, where("id", "==", workOrderId));
-        const existingWoSnapshot = await getDocs(existingWoQuery);
-
+        const existingWoSnapshot = await getDocs(q);
+    
         if (!existingWoSnapshot.empty) {
-            console.log(`Work Order with ID ${workOrderId} already exists.`);
-            return;
-        }
-
-        const newWorkOrder: WorkOrder = {
-            id: workOrderId,
-            assignedMechanics: [],
-            vehicle: {
-                reportId: report.id,
-                userId: report.userId,
-                userNik: report.userNik,
-                username: report.username,
-                location: report.location,
-                timestamp: report.timestamp,
-                damagedItems: damagedItems,
-            },
-            startTime: new Date().toISOString(),
-            status: 'Menunggu',
-            actualDamagesNotes: '',
-            usedSpareParts: [],
-        };
-
-        try {
-            await setDoc(doc(workOrderRef, workOrderId), newWorkOrder);
-            toast({
-                title: "Work Order Dibuat",
-                description: `Laporan kerusakan otomatis dibuat untuk Mekanik.`,
-            });
-        } catch(e) {
-            console.error("Failed to create automatic Work Order", e);
+            // Update the existing Work Order
+            const existingWoDoc = existingWoSnapshot.docs[0];
+            const existingWoData = existingWoDoc.data() as WorkOrder;
+            
+            // Combine old and new damaged items, avoiding duplicates
+            const existingDamagedIds = new Set(existingWoData.vehicle.damagedItems.map(item => item.id));
+            const newUniqueDamagedItems = damagedItems.filter(item => !existingDamagedIds.has(item.id));
+    
+            if (newUniqueDamagedItems.length > 0) {
+                const updatedDamagedItems = [...existingWoData.vehicle.damagedItems, ...newUniqueDamagedItems];
+                await updateDoc(existingWoDoc.ref, {
+                    "vehicle.damagedItems": updatedDamagedItems,
+                    "vehicle.timestamp": report.timestamp // Update timestamp to the latest report
+                });
+                toast({
+                    title: "Work Order Diperbarui",
+                    description: "Laporan kerusakan baru telah ditambahkan ke Work Order yang sudah ada.",
+                });
+            }
+        } else {
+            // Create a new Work Order
+            const workOrderId = `WO-${user.id}-${Date.now()}`;
+            const newWorkOrder: WorkOrder = {
+                id: workOrderId,
+                assignedMechanics: [],
+                vehicle: {
+                    reportId: report.id,
+                    userId: report.userId,
+                    userNik: report.userNik,
+                    username: report.username,
+                    location: report.location,
+                    timestamp: report.timestamp,
+                    damagedItems: damagedItems,
+                },
+                startTime: new Date().toISOString(),
+                status: 'Menunggu',
+                actualDamagesNotes: '',
+                usedSpareParts: [],
+            };
+    
+            try {
+                await setDoc(doc(workOrderRef, workOrderId), newWorkOrder);
+                toast({
+                    title: "Work Order Dibuat",
+                    description: `Laporan kerusakan otomatis dibuat untuk Mekanik.`,
+                });
+            } catch(e) {
+                console.error("Failed to create automatic Work Order", e);
+            }
         }
     };
 
@@ -211,12 +235,15 @@ export default function ChecklistHarianLoaderPage() {
             };
             
             const docRef = doc(firestore, CHECKLIST_COLLECTION, dailyKey);
-            await setDoc(docRef, report);
+            await setDoc(docRef, report, { merge: true });
 
             toast({ title: 'Berhasil', description: 'Checklist harian berhasil dikirim.' });
             setLastSubmissionTime(submissionTime);
 
             await createWorkOrderFromChecklist(report);
+            
+            // Reset the form for the next potential checklist
+            setChecklistItems(getInitialChecklistState());
 
         } catch (error) {
             console.error("Failed to save checklist report", error);
