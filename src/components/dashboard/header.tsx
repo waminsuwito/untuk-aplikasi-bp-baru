@@ -6,7 +6,7 @@ import { useAuth } from '@/context/auth-provider';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import Link from 'next/link';
-import { UserCircle, LogOut, Fingerprint, Settings, Lock, Droplets, Printer, Database, ChevronDown, Building, Scale, Map } from 'lucide-react';
+import { UserCircle, LogOut, Fingerprint, Settings, Lock, Droplets, Printer, Database, ChevronDown, Building, Scale, Map, Factory } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,6 +72,12 @@ export function Header() {
                       <Link href="/karyawan/absensi-harian">
                         <Fingerprint className="mr-2 h-4 w-4" />
                         Absen & Kegiatan
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard">
+                        <Factory className="mr-2 h-4 w-4" />
+                        Produksi
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
