@@ -94,7 +94,6 @@ export function Dashboard() {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [completedBatchData, setCompletedBatchData] = useState<ProductionHistoryEntry | null>(null);
   const [batchStartTime, setBatchStartTime] = useState<Date | null>(null);
-  const [db, setDb] = useState<Database | null>(null);
 
   const hasActiveSchedule = useMemo(() => {
     return scheduleData.some(row => row.status === 'Proses');
@@ -114,15 +113,15 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (isAuthLoading || !user) {
+    // This effect handles the Firebase Realtime Database connection.
+    // It will ONLY run when the `user` object is available.
+    if (!user) {
         return;
     }
 
-    let dbInstance: Database;
-    dbInstance = getDatabase(app);
-    setDb(dbInstance);
+    const db = getDatabase(app);
+    const weightsRef = ref(db, 'weights');
 
-    const weightsRef = ref(dbInstance, 'weights');
     const listener = onValue(weightsRef, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.val();
@@ -142,8 +141,13 @@ export function Dashboard() {
         });
     });
 
-    return () => off(weightsRef, 'value', listener);
-  }, [user, isAuthLoading, toast]);
+    // Cleanup function: This is crucial. It runs when the component unmounts
+    // or when the `user` changes (i.e., on logout), preventing memory leaks
+    // and unauthorized listeners.
+    return () => {
+        off(weightsRef, 'value', listener);
+    };
+  }, [user, toast]); // Dependency array ensures this runs only when `user` changes.
 
 
   useEffect(() => {
@@ -266,6 +270,7 @@ export function Dashboard() {
   }, []);
   
   const resetStateForNewJob = () => {
+     const db = getDatabase(app);
      if(db) {
         set(ref(db, 'weights'), { aggregate: 0, air: 0, semen: 0 });
      }
@@ -510,3 +515,5 @@ export function Dashboard() {
     </div>
   );
 }
+
+    
