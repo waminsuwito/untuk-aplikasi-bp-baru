@@ -100,13 +100,6 @@ export function Dashboard() {
     return scheduleData.some(row => row.status === 'Proses');
   }, [scheduleData]);
   
-  useEffect(() => {
-    if (user && !isAuthLoading) {
-      // Initialize database connection only when user is authenticated
-      setDb(getDatabase(app));
-    }
-  }, [user, isAuthLoading]);
-
   const addLog = (message: string, color: string = 'text-foreground') => {
       setActivityLog(prev => {
           const newLog = { 
@@ -121,34 +114,39 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (!db || !user) return; // Wait for db and user
+    if (isAuthLoading) return;
+    let dbInstance: Database;
 
-    const weightsRef = ref(db, 'weights');
+    if (user) {
+      dbInstance = getDatabase(app);
+      setDb(dbInstance);
 
-    const listener = onValue(weightsRef, (snapshot) => {
+      const weightsRef = ref(dbInstance, 'weights');
+      const listener = onValue(weightsRef, (snapshot) => {
         if (!snapshot.exists()) {
-            addLog("Inisialisasi data timbangan...", "text-blue-400");
-            set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
+          addLog("Inisialisasi data timbangan...", "text-blue-400");
+          set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
         } else {
-            const data = snapshot.val();
-            setAggregateWeight(data.aggregate || 0);
-            setAirWeight(data.air || 0);
-            setSemenWeight(data.semen || 0);
+          const data = snapshot.val();
+          setAggregateWeight(data.aggregate || 0);
+          setAirWeight(data.air || 0);
+          setSemenWeight(data.semen || 0);
         }
-    }, (error) => {
+      }, (error) => {
         console.error("Firebase weight listener error:", error);
         toast({
-            variant: 'destructive',
-            title: 'Koneksi Timbangan Gagal',
-            description: `Tidak dapat memuat data timbangan: ${error.message}`
+          variant: 'destructive',
+          title: 'Koneksi Timbangan Gagal',
+          description: `Tidak dapat memuat data timbangan: ${error.message}`
         });
-    });
+      });
 
-    // Cleanup function to detach the listener
-    return () => {
+      // Cleanup function to detach the listener
+      return () => {
         off(weightsRef, 'value', listener);
-    };
-  }, [db, user, toast]);
+      };
+    }
+  }, [user, isAuthLoading, toast]);
 
 
   useEffect(() => {
