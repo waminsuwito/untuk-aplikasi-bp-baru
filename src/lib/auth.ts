@@ -1,9 +1,10 @@
 
+
 'use client';
 
 import { type User, type Jabatan, userLocations, jabatanOptions } from '@/lib/types';
 import { auth, firestore } from '@/lib/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBatch, query, where, limit } from 'firebase/firestore';
 
 // The initial set of users to seed the application with if none are found.
@@ -82,7 +83,7 @@ export async function seedUsersToFirestore() {
     try {
       const email = createEmail(user.username);
       // Create user in Firebase Auth first
-      const userCredential = await createUserWithEmailAndPassword(auth, email, user.password || 'defaultPassword123');
+      const userCredential = await createUserWithEmailAndPassword(auth, email, user.password || '123456');
       const authUid = userCredential.user.uid;
 
       // Prepare user details for Firestore, using the new authUid as the document ID and the 'id' field.
@@ -136,17 +137,44 @@ export async function getUsers(): Promise<User[]> {
 }
 
 
-export async function addUser(userData: Omit<User, 'id' | 'password'> & { password?: string }): Promise<User> {
+export async function addUser(userData: Omit<User, 'id' | 'password'> & { password?: string }): Promise<User | null> {
     if (!userData.password) {
         throw new Error("Password is required to create a new user.");
     }
     
-    const email = createEmail(userData.username);
-    const userCredential = await createUserWithEmailAndPassword(auth, email, userData.password);
+    // 1. Save current admin's credentials
+    const currentAdminUser = auth.currentUser;
+    if (!currentAdminUser || !currentAdminUser.email) {
+        throw new Error("Admin user is not properly logged in.");
+    }
+    // We can't get the password, so we assume the admin will stay logged in.
+    // The key is to re-login the admin *after* creating the new user.
+    // For a more robust solution, you'd prompt the admin for their password.
+    // For now, we will store the email and rely on the session.
+    const adminEmail = currentAdminUser.email;
+    const adminPassword = prompt("Untuk keamanan, silakan masukkan kembali password Anda sebagai admin:");
+
+    if (!adminPassword) {
+        alert("Password admin diperlukan untuk melanjutkan.");
+        return null;
+    }
+
+    try {
+        // Test admin password before proceeding
+        await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+    } catch (error) {
+        alert("Password admin salah. Proses pembuatan pengguna dibatalkan.");
+        return null;
+    }
+
+
+    // 2. Create the new user
+    const newUserEmail = createEmail(userData.username);
+    const userCredential = await createUserWithEmailAndPassword(auth, newUserEmail, userData.password);
     const authUid = userCredential.user.uid;
 
     const newUser: User = {
-        id: authUid, // CRITICAL FIX: Use the correct authUid
+        id: authUid,
         username: userData.username,
         jabatan: userData.jabatan,
         location: userData.location,
@@ -155,6 +183,9 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
     
     const userDocRef = doc(firestore, 'users', authUid);
     await setDoc(userDocRef, newUser);
+
+    // 3. IMPORTANT: Sign back in as the admin
+    await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
     
     return newUser;
 }
@@ -165,6 +196,12 @@ export async function updateUser(userId: string, userData: Partial<Omit<User, 'i
 }
 
 export async function deleteUser(userId: string): Promise<void> {
+    // This is a complex operation on the client side.
+    // Firebase Auth does not allow deleting other users directly.
+    // This function will only delete the user from Firestore.
+    // The Auth user will remain, becoming an "orphan".
+    // Proper implementation requires a Firebase Function (backend code).
+    console.warn("Hanya menghapus data dari Firestore. Pengguna Auth masih ada.");
     const userDocRef = doc(firestore, 'users', userId);
     await deleteDoc(userDocRef);
 }
@@ -180,8 +217,12 @@ export async function changePassword(userId: string, oldPassword: string, newPas
         if (!email) {
             return { success: false, message: 'User email not found.' };
         }
-        await signInWithEmailAndPassword(auth, email, oldPassword);
         
+        // Re-authenticate user before changing password
+        const credential = EmailAuthProvider.credential(email, oldPassword);
+        await reauthenticateWithCredential(currentUser, credential);
+        
+        // If re-authentication is successful, update the password
         await updatePassword(currentUser, newPassword);
         return { success: true, message: 'Password updated successfully.' };
 
