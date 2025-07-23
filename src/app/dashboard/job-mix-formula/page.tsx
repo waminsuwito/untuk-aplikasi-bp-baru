@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,11 +11,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Edit, PlusCircle, Trash2, Save, ArrowLeft } from 'lucide-react';
+import { Edit, PlusCircle, Trash2, Save, ArrowLeft, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { getFormulas, saveFormulas, type JobMixFormula } from '@/lib/formula';
+import { getFormulas, saveFormulas, addFormula, updateFormula, deleteFormula, type JobMixFormula } from '@/lib/formula';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 const MATERIAL_LABELS_KEY = 'app-material-labels';
@@ -89,6 +88,7 @@ const formDefaultValues: FormulaFormValues = {
 
 function FormulaManagerPage() {
   const [formulas, setFormulas] = useState<JobMixFormula[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [editingFormula, setEditingFormula] = useState<JobMixFormula | null>(null);
   const [materialLabels, setMaterialLabels] = useState(defaultMaterialLabels);
   const { toast } = useToast();
@@ -98,15 +98,22 @@ function FormulaManagerPage() {
     defaultValues: formDefaultValues,
   });
 
+  const fetchFormulas = useCallback(async () => {
+    setIsLoading(true);
+    const data = await getFormulas();
+    setFormulas(data);
+    setIsLoading(false);
+  }, []);
+
   useEffect(() => {
-    setFormulas(getFormulas());
+    fetchFormulas();
     try {
         const storedLabels = localStorage.getItem(MATERIAL_LABELS_KEY);
         if (storedLabels) {
             setMaterialLabels(JSON.parse(storedLabels));
         }
     } catch (e) { console.error("Failed to load material labels", e); }
-  }, []);
+  }, [fetchFormulas]);
 
   const handleLabelChange = (key: MaterialKey, value: string) => {
     setMaterialLabels(prev => ({...prev, [key]: value }));
@@ -132,20 +139,21 @@ function FormulaManagerPage() {
     }
   }, [editingFormula, form]);
 
-  const onSubmit = (data: FormulaFormValues) => {
-    let updatedFormulas;
-    if (editingFormula) {
-      updatedFormulas = formulas.map(f => f.id === editingFormula.id ? { ...editingFormula, ...data } : f);
-      toast({ title: 'Formula Updated', description: `Formula "${data.mutuBeton}" has been updated.` });
-    } else {
-      const newFormula = { ...data, id: new Date().toISOString() };
-      updatedFormulas = [...formulas, newFormula];
-      toast({ title: 'Formula Added', description: `Formula "${data.mutuBeton}" has been added.` });
+  const onSubmit = async (data: FormulaFormValues) => {
+    try {
+      if (editingFormula) {
+        await updateFormula({ ...editingFormula, ...data });
+        toast({ title: 'Formula Diperbarui', description: `Formula "${data.mutuBeton}" telah diperbarui.` });
+      } else {
+        await addFormula(data);
+        toast({ title: 'Formula Ditambahkan', description: `Formula "${data.mutuBeton}" telah ditambahkan.` });
+      }
+      setEditingFormula(null);
+      form.reset();
+      await fetchFormulas();
+    } catch (error) {
+       toast({ variant: 'destructive', title: 'Error', description: 'Gagal menyimpan formula.' });
     }
-    setFormulas(updatedFormulas);
-    saveFormulas(updatedFormulas);
-    setEditingFormula(null);
-    form.reset();
   };
 
   const handleEdit = (formula: JobMixFormula) => {
@@ -158,11 +166,14 @@ function FormulaManagerPage() {
     form.reset();
   };
 
-  const handleDelete = (id: string) => {
-    const updatedFormulas = formulas.filter(f => f.id !== id);
-    setFormulas(updatedFormulas);
-    saveFormulas(updatedFormulas);
-    toast({ variant: 'destructive', title: 'Formula Deleted', description: 'The formula has been deleted.' });
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteFormula(id);
+      toast({ variant: 'destructive', title: 'Formula Dihapus', description: 'Formula telah dihapus.' });
+      await fetchFormulas();
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Gagal menghapus formula.' });
+    }
   };
 
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -346,76 +357,76 @@ function FormulaManagerPage() {
           </form>
         </Form>
         
-        <div className="border rounded-lg overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Mutu Beton</TableHead>
-                <TableHead>{materialLabels.pasir1} (Kg)</TableHead>
-                <TableHead>{materialLabels.pasir2} (Kg)</TableHead>
-                <TableHead>{materialLabels.batu1} (Kg)</TableHead>
-                <TableHead>{materialLabels.batu2} (Kg)</TableHead>
-                <TableHead>{materialLabels.batu3} (Kg)</TableHead>
-                <TableHead>{materialLabels.batu4} (Kg)</TableHead>
-                <TableHead>{materialLabels.semen} (Kg)</TableHead>
-                <TableHead>{materialLabels.air} (Kg)</TableHead>
-                <TableHead>{materialLabels.additive1} (Kg)</TableHead>
-                <TableHead>{materialLabels.additive2} (Kg)</TableHead>
-                <TableHead>{materialLabels.additive3} (Kg)</TableHead>
-                <TableHead className="text-center">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {formulas.map((formula) => (
-                <TableRow key={formula.id}>
-                  <TableCell className="font-medium">
-                    {formula.mutuCode ? `${formula.mutuBeton} ${formula.mutuCode}` : formula.mutuBeton}
-                  </TableCell>
-                  <TableCell>{formula.pasir1}</TableCell>
-                  <TableCell>{formula.pasir2}</TableCell>
-                  <TableCell>{formula.batu1}</TableCell>
-                  <TableCell>{formula.batu2}</TableCell>
-                  <TableCell>{formula.batu3 || 0}</TableCell>
-                  <TableCell>{formula.batu4 || 0}</TableCell>
-                  <TableCell>{formula.semen}</TableCell>
-                  <TableCell>{formula.air}</TableCell>
-                  <TableCell>{formula.additive1 || 0}</TableCell>
-                  <TableCell>{formula.additive2 || 0}</TableCell>
-                  <TableCell>{formula.additive3 || 0}</TableCell>
-                  <TableCell className="text-center space-x-2">
-                    <Button variant="outline" size="icon" onClick={() => handleEdit(formula)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="icon">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently delete the formula for <span className="font-semibold">{formula.mutuBeton}</span>.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => handleDelete(formula.id)}>Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </TableCell>
+        {isLoading ? <div className="flex justify-center items-center h-40"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : (
+          <div className="border rounded-lg overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mutu Beton</TableHead>
+                  <TableHead>{materialLabels.pasir1} (Kg)</TableHead>
+                  <TableHead>{materialLabels.pasir2} (Kg)</TableHead>
+                  <TableHead>{materialLabels.batu1} (Kg)</TableHead>
+                  <TableHead>{materialLabels.batu2} (Kg)</TableHead>
+                  <TableHead>{materialLabels.batu3} (Kg)</TableHead>
+                  <TableHead>{materialLabels.batu4} (Kg)</TableHead>
+                  <TableHead>{materialLabels.semen} (Kg)</TableHead>
+                  <TableHead>{materialLabels.air} (Kg)</TableHead>
+                  <TableHead>{materialLabels.additive1} (Kg)</TableHead>
+                  <TableHead>{materialLabels.additive2} (Kg)</TableHead>
+                  <TableHead>{materialLabels.additive3} (Kg)</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {formulas.map((formula) => (
+                  <TableRow key={formula.id}>
+                    <TableCell className="font-medium">
+                      {formula.mutuCode ? `${formula.mutuBeton} ${formula.mutuCode}` : formula.mutuBeton}
+                    </TableCell>
+                    <TableCell>{formula.pasir1}</TableCell>
+                    <TableCell>{formula.pasir2}</TableCell>
+                    <TableCell>{formula.batu1}</TableCell>
+                    <TableCell>{formula.batu2}</TableCell>
+                    <TableCell>{formula.batu3 || 0}</TableCell>
+                    <TableCell>{formula.batu4 || 0}</TableCell>
+                    <TableCell>{formula.semen}</TableCell>
+                    <TableCell>{formula.air}</TableCell>
+                    <TableCell>{formula.additive1 || 0}</TableCell>
+                    <TableCell>{formula.additive2 || 0}</TableCell>
+                    <TableCell>{formula.additive3 || 0}</TableCell>
+                    <TableCell className="text-center space-x-2">
+                      <Button variant="outline" size="icon" onClick={() => handleEdit(formula)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="icon">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete the formula for <span className="font-semibold">{formula.mutuBeton}</span>.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => handleDelete(formula.id)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
 
 export default FormulaManagerPage;
-
-    

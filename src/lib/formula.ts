@@ -1,9 +1,10 @@
-
 'use client';
 
 import type { JobMixFormula } from '@/lib/types';
+import { firestore } from '@/lib/firebase';
+import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 
-const FORMULAS_STORAGE_KEY = 'app-job-mix-formulas';
+const FORMULAS_COLLECTION = 'job-mix-formulas';
 
 const initialFormulas: JobMixFormula[] = [
   { id: '1', mutuBeton: 'K225', mutuCode: 'BPM', pasir1: 400, pasir2: 365, batu1: 500, batu2: 529, batu3: 0, batu4: 0, air: 215, semen: 371, additive1: 0, additive2: 0, additive3: 0 },
@@ -11,50 +12,50 @@ const initialFormulas: JobMixFormula[] = [
   { id: '3', mutuBeton: 'K350', mutuCode: 'BPM', pasir1: 340, pasir2: 341, batu1: 510, batu2: 511, batu3: 0, batu4: 0, air: 215, semen: 439, additive1: 0, additive2: 0, additive3: 0 },
 ];
 
-export function getFormulas(): JobMixFormula[] {
-  if (typeof window === 'undefined') {
+export async function getFormulas(): Promise<JobMixFormula[]> {
+  try {
+    const formulasCollection = collection(firestore, FORMULAS_COLLECTION);
+    const snapshot = await getDocs(formulasCollection);
+    if (snapshot.empty) {
+      // Seed initial data if the collection is empty
+      for (const formula of initialFormulas) {
+        const docRef = doc(firestore, FORMULAS_COLLECTION, formula.id);
+        await setDoc(docRef, formula);
+      }
+      return initialFormulas;
+    }
+    return snapshot.docs.map(doc => doc.data() as JobMixFormula);
+  } catch (error) {
+    console.error('Failed to get formulas from Firestore:', error);
     return [];
   }
+}
+
+export async function saveFormulas(formulas: JobMixFormula[]): Promise<void> {
   try {
-    const storedFormulas = window.localStorage.getItem(FORMULAS_STORAGE_KEY);
-    if (storedFormulas) {
-      return JSON.parse(storedFormulas);
+    const formulasCollection = collection(firestore, FORMULAS_COLLECTION);
+    for (const formula of formulas) {
+      const docRef = doc(firestore, FORMULAS_COLLECTION, formula.id);
+      await setDoc(docRef, formula, { merge: true });
     }
-    // If no formulas are stored, seed with initial formulas
-    window.localStorage.setItem(FORMULAS_STORAGE_KEY, JSON.stringify(initialFormulas));
-    return initialFormulas;
   } catch (error) {
-    console.error('Failed to access formulas from localStorage:', error);
-    return initialFormulas;
+    console.error('Failed to save formulas to Firestore:', error);
   }
 }
 
-export function saveFormulas(formulas: JobMixFormula[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(FORMULAS_STORAGE_KEY, JSON.stringify(formulas));
-  } catch (error) {
-    console.error('Failed to save formulas to localStorage:', error);
-  }
+export async function addFormula(formulaData: Omit<JobMixFormula, 'id'>): Promise<void> {
+  const newId = new Date().toISOString();
+  const newFormula: JobMixFormula = { ...formulaData, id: newId };
+  const docRef = doc(firestore, FORMULAS_COLLECTION, newId);
+  await setDoc(docRef, newFormula);
 }
 
-export function addFormula(formulaData: Omit<JobMixFormula, 'id'>): void {
-  const formulas = getFormulas();
-  const newFormula: JobMixFormula = { ...formulaData, id: new Date().toISOString() };
-  const updatedFormulas = [...formulas, newFormula];
-  saveFormulas(updatedFormulas);
+export async function updateFormula(updatedFormula: JobMixFormula): Promise<void> {
+  const docRef = doc(firestore, FORMULAS_COLLECTION, updatedFormula.id);
+  await setDoc(docRef, updatedFormula, { merge: true });
 }
 
-export function updateFormula(updatedFormula: JobMixFormula): void {
-  const formulas = getFormulas();
-  const updatedFormulas = formulas.map((f) =>
-    f.id === updatedFormula.id ? updatedFormula : f
-  );
-  saveFormulas(updatedFormulas);
-}
-
-export function deleteFormula(formulaId: string): void {
-  const formulas = getFormulas();
-  const updatedFormulas = formulas.filter((f) => f.id !== formulaId);
-  saveFormulas(updatedFormulas);
+export async function deleteFormula(formulaId: string): Promise<void> {
+  const docRef = doc(firestore, FORMULAS_COLLECTION, formulaId);
+  await deleteDoc(docRef);
 }
