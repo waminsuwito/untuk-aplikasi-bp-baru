@@ -438,53 +438,53 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-12 lg:col-span-9">
-            <WeightDisplayPanel
-                aggregateWeight={aggregateWeight}
-                airWeight={airWeight}
-                semenWeight={semenWeight}
-                targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2 + currentTargetWeights.batu3 + currentTargetWeights.batu4}
-                targetAir={currentTargetWeights.air}
-                targetSemen={currentTargetWeights.semen}
-            />
-            </div>
-            <div className="col-span-12 lg:col-span-3">
-            <StatusPanel 
-                log={activityLog}
-                timerDisplay={timerDisplay}
-                mixingTime={mixingTime}
-                setMixingTime={setMixingTime}
-                disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
-                currentMixInfo={ operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete' ? {
-                current: currentMixNumber,
-                total: jobInfo.jumlahMixing
-                } : undefined}
-            />
-            </div>
+      <div className="grid grid-cols-12 gap-4">
+        <div className="col-span-12 lg:col-span-9">
+          <WeightDisplayPanel
+            aggregateWeight={aggregateWeight}
+            airWeight={airWeight}
+            semenWeight={semenWeight}
+            targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2 + currentTargetWeights.batu3 + currentTargetWeights.batu4}
+            targetAir={currentTargetWeights.air}
+            targetSemen={currentTargetWeights.semen}
+          />
         </div>
+        <div className="col-span-12 lg:col-span-3">
+          <StatusPanel 
+            log={activityLog}
+            timerDisplay={timerDisplay}
+            mixingTime={mixingTime}
+            setMixingTime={setMixingTime}
+            disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
+            currentMixInfo={ operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete' ? {
+              current: currentMixNumber,
+              total: jobInfo.jumlahMixing
+            } : undefined}
+          />
+        </div>
+      </div>
       
-        <div>
-            <ControlPanel
-            powerOn={powerOn}
-            setPowerOn={handleSetPowerOn}
-            formulas={formulas}
-            operasiMode={operasiMode}
-            setOperasiMode={setOperasiMode}
-            handleProcessControl={handleProcessControl}
-            jobInfo={jobInfo}
-            setJobInfo={setJobInfo}
-            isManualProcessRunning={isManualProcessRunning}
-            isJobInfoLocked={isJobInfoLocked}
-            volumeWarning={volumeWarning}
-            scheduleStatusWarning={scheduleStatusWarning}
-            hasActiveSchedule={hasActiveSchedule}
-            />
-        </div>
+      <div className="relative">
+        <ControlPanel
+          powerOn={powerOn}
+          setPowerOn={handleSetPowerOn}
+          formulas={formulas}
+          operasiMode={operasiMode}
+          setOperasiMode={setOperasiMode}
+          handleProcessControl={handleProcessControl}
+          jobInfo={jobInfo}
+          setJobInfo={setJobInfo}
+          isManualProcessRunning={isManualProcessRunning}
+          isJobInfoLocked={isJobInfoLocked}
+          volumeWarning={volumeWarning}
+          scheduleStatusWarning={scheduleStatusWarning}
+          hasActiveSchedule={hasActiveSchedule}
+        />
+      </div>
       
-        <div>
-            <ScheduleSheet isOperatorView={true} />
-        </div>
+      <div>
+        <ScheduleSheet isOperatorView={true} />
+      </div>
         
         <Sheet open={showPrintPreview} onOpenChange={setShowPrintPreview}>
         <SheetContent className="w-full sm:max-w-4xl p-0 flex flex-col">
