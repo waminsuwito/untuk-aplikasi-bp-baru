@@ -114,38 +114,35 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (isAuthLoading) return;
+    if (isAuthLoading || !user) {
+        return;
+    }
+
     let dbInstance: Database;
+    dbInstance = getDatabase(app);
+    setDb(dbInstance);
 
-    if (user) {
-      dbInstance = getDatabase(app);
-      setDb(dbInstance);
-
-      const weightsRef = ref(dbInstance, 'weights');
-      const listener = onValue(weightsRef, (snapshot) => {
-        if (!snapshot.exists()) {
-          addLog("Inisialisasi data timbangan...", "text-blue-400");
-          set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
+    const weightsRef = ref(dbInstance, 'weights');
+    const listener = onValue(weightsRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            setAggregateWeight(data.aggregate || 0);
+            setAirWeight(data.air || 0);
+            setSemenWeight(data.semen || 0);
         } else {
-          const data = snapshot.val();
-          setAggregateWeight(data.aggregate || 0);
-          setAirWeight(data.air || 0);
-          setSemenWeight(data.semen || 0);
+            addLog("Inisialisasi data timbangan...", "text-blue-400");
+            set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
         }
-      }, (error) => {
+    }, (error) => {
         console.error("Firebase weight listener error:", error);
         toast({
-          variant: 'destructive',
-          title: 'Koneksi Timbangan Gagal',
-          description: `Tidak dapat memuat data timbangan: ${error.message}`
+            variant: 'destructive',
+            title: 'Koneksi Timbangan Gagal',
+            description: `Tidak dapat memuat data timbangan: ${error.message}`
         });
-      });
+    });
 
-      // Cleanup function to detach the listener
-      return () => {
-        off(weightsRef, 'value', listener);
-      };
-    }
+    return () => off(weightsRef, 'value', listener);
   }, [user, isAuthLoading, toast]);
 
 
@@ -338,7 +335,6 @@ export function Dashboard() {
         
         setCompletedBatchData(finalData);
 
-        // --- Start Real-time Notification ---
         if (user?.location && user.jabatan === 'OPRATOR BP') {
           try {
             const printJob: PrintJobData = {
@@ -354,10 +350,7 @@ export function Dashboard() {
             addLog(`Gagal mengirim notifikasi cetak`, 'text-destructive');
           }
         }
-        // --- End Real-time Notification ---
 
-
-        // Save to production history
         try {
             const storedHistory = localStorage.getItem(PRODUCTION_HISTORY_KEY);
             const history: ProductionHistoryEntry[] = storedHistory ? JSON.parse(storedHistory) : [];
@@ -406,7 +399,7 @@ export function Dashboard() {
             setTimeout(() => {
                 printElement('direct-print-content');
             }, 100);
-        } else { // 'save' mode
+        } else {
             toast({
                 title: 'Data Disimpan',
                 description: 'Data batch telah berhasil disimpan tanpa mencetak.',
@@ -421,7 +414,7 @@ export function Dashboard() {
         setAutoProcessStep('idle');
         resetStateForNewJob();
         addLog('Proses AUTO dihentikan.', 'text-destructive');
-    } else { // MANUAL MODE
+    } else {
         if (action === 'START') {
             resetStateForNewJob();
             setIsManualProcessRunning(true);
@@ -445,75 +438,75 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-12 lg:col-span-9">
-          <WeightDisplayPanel
-            aggregateWeight={aggregateWeight}
-            airWeight={airWeight}
-            semenWeight={semenWeight}
-            targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2 + currentTargetWeights.batu3 + currentTargetWeights.batu4}
-            targetAir={currentTargetWeights.air}
-            targetSemen={currentTargetWeights.semen}
-          />
+        <div className="grid grid-cols-12 gap-4">
+            <div className="col-span-12 lg:col-span-9">
+            <WeightDisplayPanel
+                aggregateWeight={aggregateWeight}
+                airWeight={airWeight}
+                semenWeight={semenWeight}
+                targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2 + currentTargetWeights.batu3 + currentTargetWeights.batu4}
+                targetAir={currentTargetWeights.air}
+                targetSemen={currentTargetWeights.semen}
+            />
+            </div>
+            <div className="col-span-12 lg:col-span-3">
+            <StatusPanel 
+                log={activityLog}
+                timerDisplay={timerDisplay}
+                mixingTime={mixingTime}
+                setMixingTime={setMixingTime}
+                disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
+                currentMixInfo={ operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete' ? {
+                current: currentMixNumber,
+                total: jobInfo.jumlahMixing
+                } : undefined}
+            />
+            </div>
         </div>
-        <div className="col-span-12 lg:col-span-3">
-          <StatusPanel 
-            log={activityLog}
-            timerDisplay={timerDisplay}
-            mixingTime={mixingTime}
-            setMixingTime={setMixingTime}
-            disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
-            currentMixInfo={ operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete' ? {
-              current: currentMixNumber,
-              total: jobInfo.jumlahMixing
-            } : undefined}
-          />
+      
+        <div>
+            <ControlPanel
+            powerOn={powerOn}
+            setPowerOn={handleSetPowerOn}
+            formulas={formulas}
+            operasiMode={operasiMode}
+            setOperasiMode={setOperasiMode}
+            handleProcessControl={handleProcessControl}
+            jobInfo={jobInfo}
+            setJobInfo={setJobInfo}
+            isManualProcessRunning={isManualProcessRunning}
+            isJobInfoLocked={isJobInfoLocked}
+            volumeWarning={volumeWarning}
+            scheduleStatusWarning={scheduleStatusWarning}
+            hasActiveSchedule={hasActiveSchedule}
+            />
         </div>
-      </div>
       
-      <div>
-        <ControlPanel
-          powerOn={powerOn}
-          setPowerOn={handleSetPowerOn}
-          formulas={formulas}
-          operasiMode={operasiMode}
-          setOperasiMode={setOperasiMode}
-          handleProcessControl={handleProcessControl}
-          jobInfo={jobInfo}
-          setJobInfo={setJobInfo}
-          isManualProcessRunning={isManualProcessRunning}
-          isJobInfoLocked={isJobInfoLocked}
-          volumeWarning={volumeWarning}
-          scheduleStatusWarning={scheduleStatusWarning}
-          hasActiveSchedule={hasActiveSchedule}
-        />
-      </div>
-      
-      <div>
-        <ScheduleSheet isOperatorView={true} />
-      </div>
+        <div>
+            <ScheduleSheet isOperatorView={true} />
+        </div>
         
-      <Sheet open={showPrintPreview} onOpenChange={setShowPrintPreview}>
-      <SheetContent className="w-full sm:max-w-4xl p-0 flex flex-col">
-          <SheetHeader className="p-6 bg-background border-b">
-              <SheetTitle>Print Preview</SheetTitle>
-              <SheetDescription>
-              Review the batch details below. Use the print button to get a physical copy.
-              </SheetDescription>
-          </SheetHeader>
-          <PrintPreview 
-              data={completedBatchData}
-              operatorName={user?.username}
-              onClose={() => setShowPrintPreview(false)} 
-          />
-      </SheetContent>
-      </Sheet>
-      
-      <div className="hidden">
-          <div id="direct-print-content">
-              {completedBatchData && <PrintPreview data={completedBatchData} operatorName={user?.username} onClose={() => {}} />}
-          </div>
-      </div>
+        <Sheet open={showPrintPreview} onOpenChange={setShowPrintPreview}>
+        <SheetContent className="w-full sm:max-w-4xl p-0 flex flex-col">
+            <SheetHeader className="p-6 bg-background border-b">
+                <SheetTitle>Print Preview</SheetTitle>
+                <SheetDescription>
+                Review the batch details below. Use the print button to get a physical copy.
+                </SheetDescription>
+            </SheetHeader>
+            <PrintPreview 
+                data={completedBatchData}
+                operatorName={user?.username}
+                onClose={() => setShowPrintPreview(false)} 
+            />
+        </SheetContent>
+        </Sheet>
+        
+        <div className="hidden">
+            <div id="direct-print-content">
+                {completedBatchData && <PrintPreview data={completedBatchData} operatorName={user?.username} onClose={() => {}} />}
+            </div>
+        </div>
     </div>
   );
 }
