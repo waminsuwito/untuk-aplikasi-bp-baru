@@ -112,14 +112,14 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (!powerOn || !user) return;
+    if (!powerOn) return;
 
     const auth = getAuth();
     const db = getDatabase();
     
     // This is the correct way to ensure auth is ready before subscribing to DB
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
-        if (firebaseUser) {
+        if (firebaseUser && user?.jabatan === 'OPRATOR BP') {
             // User is authenticated, now it's safe to listen to the database
             const weightsRef = ref(db, 'weights');
             const unsubscribeDB = onValue(weightsRef, (snapshot) => {
