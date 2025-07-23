@@ -30,7 +30,7 @@ export default function DatabaseProduksiPage() {
     const { toast } = useToast();
 
     const backUrl = useMemo(() => {
-      if (user?.role === 'ADMIN BP') {
+      if (user?.jabatan === 'ADMIN BP') {
         return '/admin-bp/schedule-cor-hari-ini';
       }
       return '/dashboard';
