@@ -10,11 +10,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/auth-provider';
 import { format } from 'date-fns';
-import { ClipboardCheck, Camera, Loader2, Upload } from 'lucide-react';
-import type { TruckChecklistItem, TruckChecklistReport, ChecklistStatus, UserLocation } from '@/lib/types';
+import { ClipboardCheck, Camera, Loader2, Upload, CheckCircle } from 'lucide-react';
+import type { TruckChecklistItem, TruckChecklistReport, ChecklistStatus, UserLocation, WorkOrder } from '@/lib/types';
 import Image from 'next/image';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+
 
 const CHECKLIST_STORAGE_KEY = 'app-loader-checklists';
+const WORK_ORDER_STORAGE_KEY = 'app-work-orders';
 
 const checklistItemsDefinition = [
     { id: 'oli_mesin', label: 'Level Oli Mesin' },
@@ -38,10 +41,29 @@ export default function ChecklistHarianLoaderPage() {
 
     const [checklistItems, setChecklistItems] = useState<TruckChecklistItem[]>(getInitialChecklistState());
     const [isLoading, setIsLoading] = useState(false);
+    const [isSubmittedToday, setIsSubmittedToday] = useState(false);
     const [cameraForItem, setCameraForItem] = useState<string | null>(null);
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+
+     useEffect(() => {
+        if (user) {
+            try {
+                const dailyKey = getDailyChecklistKey(user.id);
+                const storedGlobal = localStorage.getItem(CHECKLIST_STORAGE_KEY);
+                const allGlobalReports: TruckChecklistReport[] = storedGlobal ? JSON.parse(storedGlobal) : [];
+                const todaysReport = allGlobalReports.find(r => r.id === dailyKey);
+                
+                if (todaysReport) {
+                    setChecklistItems(todaysReport.items);
+                    setIsSubmittedToday(true);
+                }
+            } catch (error) {
+                console.error("Failed to load today's checklist report", error);
+            }
+        }
+    }, [user]);
 
     const stopCamera = () => {
         if (videoRef.current?.srcObject) {
@@ -112,6 +134,50 @@ export default function ChecklistHarianLoaderPage() {
             )
         );
     };
+    
+    const createWorkOrderFromChecklist = (report: TruckChecklistReport) => {
+        const damagedItems = report.items.filter(item => item.status === 'rusak' || item.status === 'perlu_perhatian');
+
+        if (damagedItems.length === 0) {
+            return; // No damage, no WO needed
+        }
+
+        const newWorkOrder: WorkOrder = {
+            id: `WO-${report.id}`,
+            assignedMechanics: [], // Mekanik akan ditugaskan nanti
+            vehicle: {
+                reportId: report.id,
+                userId: report.userId,
+                userNik: report.userNik,
+                username: report.username,
+                location: report.location,
+                timestamp: report.timestamp,
+                damagedItems: damagedItems,
+            },
+            startTime: new Date().toISOString(),
+            status: 'Menunggu',
+            actualDamagesNotes: '',
+            usedSpareParts: [],
+        };
+
+        try {
+            const storedWorkOrders = localStorage.getItem(WORK_ORDER_STORAGE_KEY);
+            const allWorkOrders: WorkOrder[] = storedWorkOrders ? JSON.parse(storedWorkOrders) : [];
+            
+            // Check if a WO for this checklist already exists
+            const woExists = allWorkOrders.some(wo => wo.id === newWorkOrder.id);
+            if (!woExists) {
+                allWorkOrders.push(newWorkOrder);
+                localStorage.setItem(WORK_ORDER_STORAGE_KEY, JSON.stringify(allWorkOrders));
+                toast({
+                    title: "Work Order Dibuat",
+                    description: `Laporan kerusakan otomatis dibuat untuk Mekanik.`,
+                });
+            }
+        } catch(e) {
+            console.error("Failed to create automatic Work Order", e);
+        }
+    };
 
     const handleSubmit = () => {
         if (!user || !user.nik || !user.location) {
@@ -134,33 +200,6 @@ export default function ChecklistHarianLoaderPage() {
             let allGlobalReports: TruckChecklistReport[] = storedGlobal ? JSON.parse(storedGlobal) : [];
             const existingReportIndex = allGlobalReports.findIndex(r => r.id === dailyKey);
 
-            let finalItems: TruckChecklistItem[];
-
-            if (existingReportIndex > -1) {
-                const existingReport = allGlobalReports[existingReportIndex];
-                // Merge logic: keep old issues, add new ones
-                finalItems = existingReport.items.map(oldItem => {
-                    const newItem = checklistItems.find(i => i.id === oldItem.id);
-                    if (!newItem) return oldItem;
-
-                    // If the new status is problematic, update the old item with the new details.
-                    if (newItem.status === 'rusak' || newItem.status === 'perlu_perhatian') {
-                        return { ...oldItem, ...newItem };
-                    }
-                    
-                    // If the old status was problematic, keep it that way, even if the new one is 'baik'.
-                    // This creates a cumulative list of all problems reported today.
-                    if (oldItem.status === 'rusak' || oldItem.status === 'perlu_perhatian') {
-                        return oldItem;
-                    }
-
-                    // Otherwise, just update to the new status.
-                    return newItem;
-                });
-            } else {
-                finalItems = checklistItems;
-            }
-
             const report: TruckChecklistReport = {
                 id: dailyKey,
                 userId: user.id,
@@ -168,7 +207,7 @@ export default function ChecklistHarianLoaderPage() {
                 username: user.username,
                 location: user.location as UserLocation,
                 timestamp: new Date().toISOString(),
-                items: finalItems,
+                items: checklistItems,
             };
             
             if (existingReportIndex > -1) {
@@ -179,10 +218,11 @@ export default function ChecklistHarianLoaderPage() {
             
             localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(allGlobalReports));
 
-            toast({ title: 'Berhasil', description: 'Checklist harian berhasil dikirim/diperbarui.' });
-            
-            // Reset form to initial state for the next submission
-            setChecklistItems(getInitialChecklistState());
+            toast({ title: 'Berhasil', description: 'Checklist harian berhasil dikirim.' });
+            setIsSubmittedToday(true);
+
+            // Automatically create a Work Order if there's damage
+            createWorkOrderFromChecklist(report);
 
         } catch (error) {
             console.error("Failed to save checklist report", error);
@@ -205,6 +245,16 @@ export default function ChecklistHarianLoaderPage() {
             <CardContent className="space-y-6">
                 <canvas ref={canvasRef} className="hidden" />
 
+                {isSubmittedToday && (
+                    <Alert variant="default" className="bg-green-100 dark:bg-green-900/40 border-green-500">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <AlertTitle>Laporan Terkirim</AlertTitle>
+                        <AlertDescription>
+                            Anda sudah mengirimkan checklist untuk hari ini. Terima kasih.
+                        </AlertDescription>
+                    </Alert>
+                )}
+
                 <div className="space-y-8">
                     {checklistItems.map((item, index) => (
                         <div key={item.id} className="border-b pb-6">
@@ -215,7 +265,7 @@ export default function ChecklistHarianLoaderPage() {
                                         value={item.status || ""}
                                         onValueChange={(value) => handleStatusChange(item.id, value as ChecklistStatus)}
                                         className="space-y-2"
-                                        disabled={isLoading}
+                                        disabled={isLoading || isSubmittedToday}
                                     >
                                         <div className="flex items-center space-x-2">
                                             <RadioGroupItem value="baik" id={`${item.id}-baik`} />
@@ -242,7 +292,7 @@ export default function ChecklistHarianLoaderPage() {
                                                 value={item.notes || ''}
                                                 onChange={(e) => handleNotesChange(item.id, e.target.value)}
                                                 style={{ textTransform: 'uppercase' }}
-                                                disabled={isLoading}
+                                                disabled={isLoading || isSubmittedToday}
                                                 rows={3}
                                             />
                                         </div>
@@ -268,7 +318,7 @@ export default function ChecklistHarianLoaderPage() {
                                             <Button
                                                 variant="outline"
                                                 onClick={() => handleActivateCamera(item.id)}
-                                                disabled={isLoading}
+                                                disabled={isLoading || isSubmittedToday}
                                             >
                                                 <Upload className="mr-2 h-4 w-4" /> Upload Foto
                                             </Button>
@@ -283,12 +333,20 @@ export default function ChecklistHarianLoaderPage() {
             <CardFooter>
                 <Button
                     onClick={handleSubmit}
-                    disabled={isLoading}
+                    disabled={isLoading || isSubmittedToday}
                     className="w-full"
                     size="lg"
                 >
-                    {isLoading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-                    Kirim Checklist
+                    {isLoading ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : isSubmittedToday ? (
+                        <>
+                            <CheckCircle className="mr-2 h-5 w-5" />
+                            Laporan Hari Ini Sudah Dikirim
+                        </>
+                    ) : (
+                        'Kirim Checklist'
+                    )}
                 </Button>
             </CardFooter>
         </Card>

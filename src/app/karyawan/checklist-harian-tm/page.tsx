@@ -12,10 +12,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/auth-provider';
 import { format } from 'date-fns';
 import { ClipboardCheck, Camera, Loader2, CheckCircle, Upload } from 'lucide-react';
-import type { TruckChecklistItem, TruckChecklistReport, ChecklistStatus, UserLocation } from '@/lib/types';
+import type { TruckChecklistItem, TruckChecklistReport, ChecklistStatus, UserLocation, WorkOrder } from '@/lib/types';
 import Image from 'next/image';
 
 const CHECKLIST_STORAGE_KEY = 'app-tm-checklists';
+const WORK_ORDER_STORAGE_KEY = 'app-work-orders';
 
 const checklistItemsDefinition = [
     { id: 'oli_mesin', label: 'Level Oli Mesin' },
@@ -49,11 +50,12 @@ export default function ChecklistHarianTmPage() {
         if (user) {
             try {
                 const dailyKey = getDailyChecklistKey(user.id);
-                const storedReport = localStorage.getItem(dailyKey);
-                if (storedReport) {
-                    const parsedReport: TruckChecklistReport = JSON.parse(storedReport);
-                    const itemsWithNotes = parsedReport.items.map(item => ({ ...item, status: item.status || 'baik', notes: item.notes || '' }));
-                    setChecklistItems(itemsWithNotes);
+                const storedGlobal = localStorage.getItem(CHECKLIST_STORAGE_KEY);
+                const allGlobalReports: TruckChecklistReport[] = storedGlobal ? JSON.parse(storedGlobal) : [];
+                const todaysReport = allGlobalReports.find(r => r.id === dailyKey);
+                
+                if (todaysReport) {
+                    setChecklistItems(todaysReport.items);
                     setIsSubmittedToday(true);
                 }
             } catch (error) {
@@ -132,6 +134,51 @@ export default function ChecklistHarianTmPage() {
         );
     };
 
+    const createWorkOrderFromChecklist = (report: TruckChecklistReport) => {
+        const damagedItems = report.items.filter(item => item.status === 'rusak' || item.status === 'perlu_perhatian');
+
+        if (damagedItems.length === 0) {
+            return; // No damage, no WO needed
+        }
+
+        const newWorkOrder: WorkOrder = {
+            id: `WO-${report.id}`,
+            assignedMechanics: [], // Mekanik akan ditugaskan nanti
+            vehicle: {
+                reportId: report.id,
+                userId: report.userId,
+                userNik: report.userNik,
+                username: report.username,
+                location: report.location,
+                timestamp: report.timestamp,
+                damagedItems: damagedItems,
+            },
+            startTime: new Date().toISOString(),
+            status: 'Menunggu',
+            actualDamagesNotes: '',
+            usedSpareParts: [],
+        };
+
+        try {
+            const storedWorkOrders = localStorage.getItem(WORK_ORDER_STORAGE_KEY);
+            const allWorkOrders: WorkOrder[] = storedWorkOrders ? JSON.parse(storedWorkOrders) : [];
+            
+            // Check if a WO for this checklist already exists
+            const woExists = allWorkOrders.some(wo => wo.id === newWorkOrder.id);
+            if (!woExists) {
+                allWorkOrders.push(newWorkOrder);
+                localStorage.setItem(WORK_ORDER_STORAGE_KEY, JSON.stringify(allWorkOrders));
+                toast({
+                    title: "Work Order Dibuat",
+                    description: `Laporan kerusakan otomatis dibuat untuk Mekanik.`,
+                });
+            }
+        } catch(e) {
+            console.error("Failed to create automatic Work Order", e);
+        }
+    };
+
+
     const handleSubmit = () => {
         if (!user || !user.nik || !user.location) {
             toast({ variant: 'destructive', title: 'Error', description: 'Data pengguna tidak valid.' });
@@ -158,17 +205,24 @@ export default function ChecklistHarianTmPage() {
         };
 
         try {
-            // Save to a personal daily key
-            localStorage.setItem(dailyKey, JSON.stringify(report));
-
-            // Append to the global list of reports
             const storedGlobal = localStorage.getItem(CHECKLIST_STORAGE_KEY);
             const allGlobalReports: TruckChecklistReport[] = storedGlobal ? JSON.parse(storedGlobal) : [];
-            allGlobalReports.push(report);
+            
+            const existingReportIndex = allGlobalReports.findIndex(r => r.id === dailyKey);
+            if (existingReportIndex > -1) {
+                allGlobalReports[existingReportIndex] = report;
+            } else {
+                allGlobalReports.push(report);
+            }
+
             localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(allGlobalReports));
 
             toast({ title: 'Berhasil', description: 'Checklist harian berhasil dikirim.' });
             setIsSubmittedToday(true);
+
+            // Automatically create a Work Order if there's damage
+            createWorkOrderFromChecklist(report);
+
         } catch (error) {
             console.error("Failed to save checklist report", error);
             toast({ variant: 'destructive', title: 'Gagal Menyimpan', description: 'Terjadi kesalahan saat menyimpan laporan.' });
@@ -260,13 +314,15 @@ export default function ChecklistHarianTmPage() {
                                             </Button>
                                         </div>
                                     ) : (
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => handleActivateCamera(item.id)}
-                                            disabled={isSubmittedToday || isLoading}
-                                        >
-                                            <Upload className="mr-2 h-4 w-4" /> Upload Foto
-                                        </Button>
+                                        (item.status === 'rusak' || item.status === 'perlu_perhatian') && (
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => handleActivateCamera(item.id)}
+                                                disabled={isSubmittedToday || isLoading}
+                                            >
+                                                <Upload className="mr-2 h-4 w-4" /> Upload Foto
+                                            </Button>
+                                        )
                                     )}
                                 </div>
                             </div>
@@ -275,14 +331,22 @@ export default function ChecklistHarianTmPage() {
                 </div>
             </CardContent>
             <CardFooter>
-                <Button
+                 <Button
                     onClick={handleSubmit}
-                    disabled={isSubmittedToday || isLoading}
+                    disabled={isLoading || isSubmittedToday}
                     className="w-full"
                     size="lg"
                 >
-                    {isLoading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-                    Kirim Checklist
+                    {isLoading ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : isSubmittedToday ? (
+                        <>
+                            <CheckCircle className="mr-2 h-5 w-5" />
+                            Laporan Hari Ini Sudah Dikirim
+                        </>
+                    ) : (
+                        'Kirim Checklist'
+                    )}
                 </Button>
             </CardFooter>
         </Card>
