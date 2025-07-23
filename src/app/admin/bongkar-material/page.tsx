@@ -41,10 +41,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import type { BongkarMaterial, BongkarStatus } from '@/lib/types';
+import type { BongkarMaterial, BongkarStatus, UserLocation } from '@/lib/types';
+import { useAuth } from '@/context/auth-provider';
+import { firestore } from '@/lib/firebase';
+import { collection, doc, setDoc, onSnapshot, deleteDoc, query, where } from 'firebase/firestore';
 
 
-const BONGKAR_MATERIAL_STORAGE_KEY = 'app-bongkar-material';
+const BONGKAR_MATERIAL_COLLECTION = 'unloading-activities';
 const materialOptions = ["Batu", "Pasir", "Semen", "Obat Beton"];
 
 const initialFormState = {
@@ -56,27 +59,31 @@ const initialFormState = {
 };
 
 export default function BongkarMaterialPage() {
+  const { user } = useAuth();
   const [daftarBongkar, setDaftarBongkar] = useState<BongkarMaterial[]>([]);
   const [formState, setFormState] = useState(initialFormState);
 
   useEffect(() => {
-    try {
-      const storedData = localStorage.getItem(BONGKAR_MATERIAL_STORAGE_KEY);
-      if (storedData) {
-        setDaftarBongkar(JSON.parse(storedData));
-      }
-    } catch (error) {
-      console.error("Failed to load data from localStorage", error);
-    }
-  }, []);
+    if (!user || !user.location) return;
 
-  const saveToLocalStorage = (data: BongkarMaterial[]) => {
-    try {
-      localStorage.setItem(BONGKAR_MATERIAL_STORAGE_KEY, JSON.stringify(data));
-    } catch (error) {
-      console.error("Failed to save data to localStorage", error);
-    }
-  };
+    const q = query(
+      collection(firestore, BONGKAR_MATERIAL_COLLECTION),
+      where('location', '==', user.location)
+    );
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const data: BongkarMaterial[] = [];
+        querySnapshot.forEach((doc) => {
+            data.push(doc.data() as BongkarMaterial);
+        });
+        data.sort((a, b) => new Date(b.id).getTime() - new Date(a.id).getTime());
+        setDaftarBongkar(data);
+    }, (error) => {
+        console.error("Error fetching unloading activities:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -101,8 +108,10 @@ export default function BongkarMaterialPage() {
     }
   };
 
-  const handleTambahBongkar = (e: React.FormEvent) => {
+  const handleTambahBongkar = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user || !user.location) return;
+
     const requiredFields: (keyof typeof initialFormState)[] = ['namaMaterial', 'kapalKendaraan', 'namaKaptenSopir', 'volume'];
     for (const field of requiredFields) {
         if (!formState[field].trim()) {
@@ -112,8 +121,9 @@ export default function BongkarMaterialPage() {
     }
 
     const unit = getUnit(formState.namaMaterial);
+    const id = new Date().toISOString();
     const newItem: BongkarMaterial = {
-      id: new Date().toISOString(),
+      id: id,
       ...formState,
       volume: `${formState.volume} ${unit}`.trim(),
       waktuMulai: null,
@@ -121,111 +131,87 @@ export default function BongkarMaterialPage() {
       status: 'Belum Dimulai',
       waktuMulaiIstirahat: null,
       totalIstirahatMs: 0,
+      location: user.location,
     };
     
-    setDaftarBongkar(currentDaftar => {
-        const updatedData = [...currentDaftar, newItem];
-        saveToLocalStorage(updatedData);
-        return updatedData;
-    });
-
-    setFormState(initialFormState); // Reset form
+    try {
+        await setDoc(doc(firestore, BONGKAR_MATERIAL_COLLECTION, id), newItem);
+        setFormState(initialFormState); // Reset form
+    } catch(error) {
+        console.error("Failed to add unloading activity:", error);
+    }
   };
 
+  const updateFirestoreDoc = async (id: string, updateData: Partial<BongkarMaterial>) => {
+    const docRef = doc(firestore, BONGKAR_MATERIAL_COLLECTION, id);
+    await setDoc(docRef, updateData, { merge: true });
+  }
+
   const handleMulaiProses = (id: string) => {
-    setDaftarBongkar(currentDaftar => {
-        const updatedData = currentDaftar.map(item => {
-          if (item.id === id) {
-            return {
-              ...item,
-              status: 'Proses' as const,
-              waktuMulai: new Date().toISOString(),
-            };
-          }
-          return item;
-        });
-        saveToLocalStorage(updatedData);
-        return updatedData;
-    });
+     updateFirestoreDoc(id, {
+        status: 'Proses' as const,
+        waktuMulai: new Date().toISOString(),
+      });
   };
 
   const handleSelesaiBongkar = (id: string) => {
-    setDaftarBongkar(currentDaftar => {
-        const updatedData = currentDaftar.map(item => {
-          if (item.id === id) {
-            const waktuSelesaiObj = new Date();
-            let finalTotalIstirahatMs = item.totalIstirahatMs || 0;
-            
-            if (item.status === 'Istirahat' && item.waktuMulaiIstirahat) {
-               try {
-                   const istirahatMulai = new Date(item.waktuMulaiIstirahat).getTime();
-                   if (!isNaN(istirahatMulai)) {
-                     const istirahatSelesai = waktuSelesaiObj.getTime();
-                     const durasiIstirahatIni = istirahatSelesai - istirahatMulai;
-                     finalTotalIstirahatMs += durasiIstirahatIni;
-                   }
-               } catch (e) { console.error("Invalid break start date", e); }
-            }
-            
-            return {
-              ...item,
-              status: 'Selesai' as const,
-              waktuSelesai: waktuSelesaiObj.toISOString(),
-              totalIstirahatMs: finalTotalIstirahatMs,
-              waktuMulaiIstirahat: null,
-            };
-          }
-          return item;
-        });
-        saveToLocalStorage(updatedData);
-        return updatedData;
+    const itemToUpdate = daftarBongkar.find(item => item.id === id);
+    if (!itemToUpdate) return;
+    
+    const waktuSelesaiObj = new Date();
+    let finalTotalIstirahatMs = itemToUpdate.totalIstirahatMs || 0;
+    
+    if (itemToUpdate.status === 'Istirahat' && itemToUpdate.waktuMulaiIstirahat) {
+       try {
+           const istirahatMulai = new Date(itemToUpdate.waktuMulaiIstirahat).getTime();
+           if (!isNaN(istirahatMulai)) {
+             const istirahatSelesai = waktuSelesaiObj.getTime();
+             const durasiIstirahatIni = istirahatSelesai - istirahatMulai;
+             finalTotalIstirahatMs += durasiIstirahatIni;
+           }
+       } catch (e) { console.error("Invalid break start date", e); }
+    }
+    
+    updateFirestoreDoc(id, {
+        status: 'Selesai' as const,
+        waktuSelesai: waktuSelesaiObj.toISOString(),
+        totalIstirahatMs: finalTotalIstirahatMs,
+        waktuMulaiIstirahat: null,
     });
   };
 
   const handleToggleIstirahat = (id: string) => {
-    setDaftarBongkar(currentDaftar => {
-        const updatedData = currentDaftar.map(item => {
-          if (item.id === id) {
-            if (item.status === 'Proses') {
-              return { 
-                ...item, 
-                status: 'Istirahat' as const,
-                waktuMulaiIstirahat: new Date().toISOString(),
-              };
-            } else if (item.status === 'Istirahat') {
-              let totalIstirahatBaru = item.totalIstirahatMs || 0;
-              if (item.waktuMulaiIstirahat) {
-                  try {
-                      const istirahatMulai = new Date(item.waktuMulaiIstirahat).getTime();
-                      if (!isNaN(istirahatMulai)) {
-                        const istirahatSelesai = new Date().getTime();
-                        const durasiIstirahatIni = istirahatSelesai - istirahatMulai;
-                        totalIstirahatBaru += durasiIstirahatIni;
-                      }
-                  } catch(e) { console.error("Invalid break start date on resume", e); }
+    const itemToUpdate = daftarBongkar.find(item => item.id === id);
+    if (!itemToUpdate) return;
+    
+    if (itemToUpdate.status === 'Proses') {
+      updateFirestoreDoc(id, { 
+        status: 'Istirahat' as const,
+        waktuMulaiIstirahat: new Date().toISOString(),
+      });
+    } else if (itemToUpdate.status === 'Istirahat') {
+      let totalIstirahatBaru = itemToUpdate.totalIstirahatMs || 0;
+      if (itemToUpdate.waktuMulaiIstirahat) {
+          try {
+              const istirahatMulai = new Date(itemToUpdate.waktuMulaiIstirahat).getTime();
+              if (!isNaN(istirahatMulai)) {
+                const istirahatSelesai = new Date().getTime();
+                const durasiIstirahatIni = istirahatSelesai - istirahatMulai;
+                totalIstirahatBaru += durasiIstirahatIni;
               }
-              
-              return { 
-                ...item, 
-                status: 'Proses' as const,
-                waktuMulaiIstirahat: null,
-                totalIstirahatMs: totalIstirahatBaru,
-              };
-            }
-          }
-          return item;
-        });
-        saveToLocalStorage(updatedData);
-        return updatedData;
-    });
+          } catch(e) { console.error("Invalid break start date on resume", e); }
+      }
+      
+      updateFirestoreDoc(id, { 
+        status: 'Proses' as const,
+        waktuMulaiIstirahat: null,
+        totalIstirahatMs: totalIstirahatBaru,
+      });
+    }
   };
 
-  const handleDeleteItem = (id: string) => {
-    setDaftarBongkar(currentDaftar => {
-        const updatedData = currentDaftar.filter(item => item.id !== id);
-        saveToLocalStorage(updatedData);
-        return updatedData;
-    });
+  const handleDeleteItem = async (id: string) => {
+    await deleteDoc(doc(firestore, BONGKAR_MATERIAL_COLLECTION, id));
   };
 
   const calculatePerformance = (item: BongkarMaterial) => {

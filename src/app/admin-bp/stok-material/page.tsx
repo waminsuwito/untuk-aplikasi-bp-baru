@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,13 +13,15 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, subDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/auth-provider';
-import type { ProductionHistoryEntry } from '@/lib/types';
+import type { ProductionHistoryEntry, UserLocation } from '@/lib/types';
+import { firestore } from '@/lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getDatabase, ref, onValue } from 'firebase/database';
 
 
 const MATERIAL_LABELS_KEY = 'app-material-labels';
 const SPECIFIC_GRAVITY_KEY = 'app-material-specific-gravity';
-const PRODUCTION_HISTORY_KEY = 'app-production-history';
-const STOCK_KEY_PREFIX = 'app-stok-material-';
+const STOCK_COLLECTION_PREFIX = 'stock-records';
 
 const defaultMaterialLabels = {
   pasir1: 'Pasir 1', pasir2: 'Pasir 2',
@@ -79,55 +81,74 @@ export default function StokMaterialPage() {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const getStockKey = (d: Date) => `${STOCK_KEY_PREFIX}${user?.location}-${format(d, 'yyyy-MM-dd')}`;
+  const getStockDocRef = (d: Date, location: UserLocation) => {
+    const dateStr = format(d, 'yyyy-MM-dd');
+    return doc(firestore, STOCK_COLLECTION_PREFIX, `${location}-${dateStr}`);
+  }
+  
+  const loadProductionHistory = useCallback(() => {
+    const db = getDatabase();
+    const historyRef = ref(db, 'production-history');
+
+    const unsubscribe = onValue(historyRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const historyArray: ProductionHistoryEntry[] = Object.values(data);
+        setProductionHistory(historyArray);
+      } else {
+        setProductionHistory([]);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
+    const unsubscribe = loadProductionHistory();
     try {
       setMaterialLabels(getMaterialConfig());
       setSpecificGravities(getSpecificGravities());
-      const storedHistory = localStorage.getItem(PRODUCTION_HISTORY_KEY);
-      if (storedHistory) {
-        setProductionHistory(JSON.parse(storedHistory));
-      }
     } catch (error) {
-      console.error("Failed to load initial data:", error);
+      console.error("Failed to load initial config from localStorage:", error);
     }
-  }, []);
+    return () => unsubscribe();
+  }, [loadProductionHistory]);
 
   useEffect(() => {
     if(!user?.location) return;
 
-    try {
-      const key = getStockKey(date);
-      const storedData = localStorage.getItem(key);
+    const fetchStockData = async () => {
+        try {
+          const docRef = getStockDocRef(date, user.location as UserLocation);
+          const docSnap = await getDoc(docRef);
 
-      if (storedData) {
-        // Data for today exists, load it
-        setStock({ ...createInitialStock(), ...JSON.parse(storedData) });
-      } else {
-        // No data for today, try to get yesterday's closing stock
-        const yesterday = subDays(date, 1);
-        const yesterdayKey = getStockKey(yesterday);
-        const yesterdayStoredData = localStorage.getItem(yesterdayKey);
-        
-        if (yesterdayStoredData) {
-          const yesterdayStock: DailyStock = { ...createInitialStock(), ...JSON.parse(yesterdayStoredData) };
-          const yesterdayStockAkhir = calculateStockAkhirForDay(yesterdayStock);
-          
-          const newTodayStock = createInitialStock();
-          for (const key of materialKeysInOrder) {
-            newTodayStock[key].awal = yesterdayStockAkhir[key] || 0;
+          if (docSnap.exists()) {
+            setStock({ ...createInitialStock(), ...docSnap.data() });
+          } else {
+            const yesterday = subDays(date, 1);
+            const yesterdayDocRef = getStockDocRef(yesterday, user.location as UserLocation);
+            const yesterdaySnap = await getDoc(yesterdayDocRef);
+            
+            if (yesterdaySnap.exists()) {
+              const yesterdayStock: DailyStock = { ...createInitialStock(), ...yesterdaySnap.data() };
+              const yesterdayStockAkhir = calculateStockAkhirForDay(yesterdayStock);
+              
+              const newTodayStock = createInitialStock();
+              for (const key of materialKeysInOrder) {
+                newTodayStock[key].awal = yesterdayStockAkhir[key] || 0;
+              }
+              setStock(newTodayStock);
+            } else {
+              setStock(createInitialStock());
+            }
           }
-          setStock(newTodayStock);
-        } else {
-          // No data for yesterday either, start with fresh initial stock
+        } catch (error) {
+          console.error("Failed to load stock data:", error);
           setStock(createInitialStock());
         }
-      }
-    } catch (error) {
-      console.error("Failed to load stock data:", error);
-      setStock(createInitialStock()); // Reset on error
-    }
+    };
+    
+    fetchStockData();
   }, [date, user]);
 
   const calculatedUsage = useMemo(() => {
@@ -150,19 +171,8 @@ export default function StokMaterialPage() {
       }
     });
     
-    // Convert to M3 or L for aggregates/additives
-    for(const key of materialKeysInOrder) {
-        if (key.startsWith('pasir') || key.startsWith('batu')) {
-            const sg = specificGravities[key.substring(0, key.length -1)] || 1;
-            usage[key] = sg > 0 ? usage[key] / sg : usage[key];
-        } else if (key.startsWith('additive')) {
-            const sg = specificGravities[key] || 1;
-            usage[key] = sg > 0 ? usage[key] / sg : usage[key];
-        }
-    }
-    
     return usage;
-  }, [date, productionHistory, specificGravities]);
+  }, [date, productionHistory]);
   
   useEffect(() => {
     setStock(prev => {
@@ -186,14 +196,14 @@ export default function StokMaterialPage() {
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if(!user?.location) {
         toast({ variant: 'destructive', title: 'Error', description: 'User location not found.' });
         return;
     }
     try {
-      const key = getStockKey(date);
-      localStorage.setItem(key, JSON.stringify(stock));
+      const docRef = getStockDocRef(date, user.location as UserLocation);
+      await setDoc(docRef, stock);
       toast({
         title: 'Berhasil Disimpan',
         description: `Data stok untuk tanggal ${format(date, 'd MMMM yyyy')} telah disimpan.`,
@@ -266,15 +276,11 @@ export default function StokMaterialPage() {
                 <TableHead className="w-[15%] font-bold text-white bg-gray-700 min-w-[150px]">KETERANGAN</TableHead>
                 {materialKeysInOrder.map(key => {
                     let unit = 'Kg';
-                    if (key.startsWith('pasir') || key.startsWith('batu')) {
-                      unit = 'M³';
-                    } else if (key.startsWith('additive')) {
-                      unit = 'L';
-                    }
+                    // Unit logic is removed as all are in Kg now.
                     
                     return (
                         <TableHead key={key} className="text-center font-bold text-white bg-gray-600 min-w-[150px]">
-                            {materialLabels[key]} ({unit})
+                            {materialLabels[key]} (Kg)
                         </TableHead>
                     );
                 })}
@@ -301,7 +307,7 @@ export default function StokMaterialPage() {
                 <TableCell className="font-semibold">PEMAKAIAN</TableCell>
                  {materialKeysInOrder.map(key => (
                     <TableCell key={key}>
-                        <Input type="number" className="text-center" value={stock[key]?.pemakaian.toFixed(2) || '0.00'} readOnly disabled />
+                        <Input type="number" className="text-center" value={Math.round(stock[key]?.pemakaian) || 0} readOnly disabled />
                     </TableCell>
                 ))}
               </TableRow>
