@@ -114,7 +114,7 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (!powerOn) return;
+    if (!powerOn || !user) return; // Wait for user to be authenticated
 
     const weightsRef = ref(database, 'weights');
 
@@ -137,7 +137,7 @@ export function Dashboard() {
     return () => {
       unsubscribeWeights();
     };
-  }, [powerOn, toast]);
+  }, [powerOn, user, toast]);
 
   useEffect(() => {
     const loadedFormulas = getFormulas();
