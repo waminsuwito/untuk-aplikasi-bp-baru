@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Fingerprint, ClipboardList, Megaphone, ShieldAlert, AlertTriangle, Lightbulb, MessageSquareWarning, ArrowLeft, ClipboardCheck, Construction, Wrench, ClipboardEdit, ScrollText, Users } from 'lucide-react';
+import { Fingerprint, ClipboardList, Megaphone, ShieldAlert, AlertTriangle, Lightbulb, MessageSquareWarning, ArrowLeft, ClipboardCheck, Construction, Wrench, ClipboardEdit, ScrollText, Users, Factory } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { buttonVariants, Button } from '@/components/ui/button';
 import { useAuth } from '@/context/auth-provider';
@@ -92,8 +92,8 @@ export function KaryawanSidebar() {
           <>
             <Button asChild variant="outline">
               <Link href="/dashboard">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Kembali ke Dashboard
+                 <Factory className="mr-2 h-4 w-4" />
+                Kembali ke Produksi
               </Link>
             </Button>
             <Separator className="my-2" />

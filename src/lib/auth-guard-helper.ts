@@ -12,7 +12,7 @@ export const getDefaultRouteForUser = (user: { jabatan?: string }): string => {
       case 'ADMIN LOGISTIK': return '/admin/pemakaian-spare-part';
       case 'LOGISTIK MATERIAL': return '/admin/pemasukan-material';
       case 'HSE/K3': return '/admin/absensi-karyawan-hari-ini';
-      case 'OPRATOR BP': return '/dashboard';
+      case 'OPRATOR BP': return '/dashboard/tombol-manual';
       case 'SOPIR TM': return '/karyawan/checklist-harian-tm';
       case 'KEPALA MEKANIK': return '/karyawan/manajemen-alat';
       case 'KEPALA WORKSHOP': return '/karyawan/manajemen-alat';
