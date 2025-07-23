@@ -1,7 +1,8 @@
+
 // src/lib/firebase.ts
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getDatabase } from 'firebase/database';
 
@@ -27,5 +28,17 @@ const auth = getAuth(app);
 const firestore = getFirestore(app);
 const storage = getStorage(app);
 const database = getDatabase(app);
+
+// Enable Firestore offline persistence
+try {
+  enableIndexedDbPersistence(firestore);
+} catch (err: any) {
+  if (err.code === 'failed-precondition') {
+    console.warn('Firestore offline persistence failed: Multiple tabs open.');
+  } else if (err.code === 'unimplemented') {
+    console.warn('Firestore offline persistence failed: Browser does not support it.');
+  }
+}
+
 
 export { app, auth, firestore, storage, database };
