@@ -42,7 +42,7 @@ const PRODUCTION_HISTORY_KEY = 'production-history';
 type PrintMode = 'preview' | 'direct' | 'save';
 
 export function Dashboard() {
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
   
   const [aggregateWeight, setAggregateWeight] = useState(0);
@@ -109,8 +109,7 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    // Strict guard to ensure user is fully authenticated before connecting to DB.
-    if (!user) {
+    if (isAuthLoading || !user) {
         return;
     }
 
@@ -136,11 +135,10 @@ export function Dashboard() {
         });
     });
 
-    // Cleanup function to detach the listener when component unmounts or user changes.
     return () => {
         off(weightsRef, 'value', listener);
     };
-  }, [user, toast]); // Dependency array ensures this runs only when user object is available.
+  }, [isAuthLoading, user, toast]);
 
 
   useEffect(() => {
@@ -468,3 +466,5 @@ export function Dashboard() {
     </div>
   );
 }
+
+    
