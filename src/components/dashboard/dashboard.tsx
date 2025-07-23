@@ -14,7 +14,7 @@ import type { MixingProcessConfig, MixerTimerConfig } from '@/lib/config';
 import { useAuth } from '@/context/auth-provider';
 import type { JobMixFormula, ScheduleSheetRow, ProductionHistoryEntry, PrintJobData } from '@/lib/types';
 import { getFormulas } from '@/lib/formula';
-import { database } from '@/lib/firebase'; // Import database instance directly
+import { database } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
@@ -157,36 +157,42 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (!powerOn || !user) return;
+    // AuthProvider now guarantees `user` is settled before this component renders.
+    // If user exists, we can safely connect.
+    if (!user) {
+        // This case should ideally not happen due to AuthProvider's logic,
+        // but it's a good safeguard.
+        return;
+    }
 
     const weightsRef = ref(database, 'weights');
-    
-    // Set initial values if they don't exist
+
+    // Initialize data if it doesn't exist
     get(weightsRef).then((snapshot) => {
-      if (!snapshot.exists()) {
-        console.log("Path '/weights' does not exist. Initializing...");
-        set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
-      }
+        if (!snapshot.exists()) {
+            console.log("Path '/weights' does not exist. Initializing...");
+            set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
+        }
     });
 
     const unsubscribe = onValue(weightsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setAggregateWeight(data.aggregate || 0);
-        setAirWeight(data.air || 0);
-        setSemenWeight(data.semen || 0);
-      }
+        const data = snapshot.val();
+        if (data) {
+            setAggregateWeight(data.aggregate || 0);
+            setAirWeight(data.air || 0);
+            setSemenWeight(data.semen || 0);
+        }
     }, (error) => {
-      console.error("Firebase weight listener error:", error);
-      toast({
-          variant: 'destructive',
-          title: 'Koneksi Timbangan Gagal',
-          description: `Tidak dapat memuat data timbangan: ${error.message}`
-      });
+        console.error("Firebase weight listener error:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Koneksi Timbangan Gagal',
+            description: `Tidak dapat memuat data timbangan: ${error.message}`
+        });
     });
 
     return () => unsubscribe();
-  }, [powerOn, user, toast]);
+  }, [user, toast]);
 
 
   useEffect(() => {
@@ -576,5 +582,3 @@ export function Dashboard() {
     </div>
   );
 }
-
-    
