@@ -113,7 +113,7 @@ export default function ManajemenKaryawanPage() {
   const handleCancelEdit = () => {
     setUserToEdit(null);
   };
-
+  
   if (isLoading || isAuthLoading) {
     return (
         <div className="w-full max-w-4xl space-y-6 mx-auto">
@@ -172,7 +172,7 @@ export default function ManajemenKaryawanPage() {
           <CardHeader>
               <CardTitle>Manage Users</CardTitle>
               <CardDescription>View, edit, or delete existing users.</CardDescription>
-          </Header>
+          </CardHeader>
           <CardContent>
               <UserList users={usersForDisplay} onEdit={handleEditUser} onDelete={handleDeleteUser} />
           </CardContent>
