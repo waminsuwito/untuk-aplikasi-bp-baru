@@ -31,14 +31,23 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!nikOrUsername.trim() || !password.trim()) {
+        toast({
+            variant: 'destructive',
+            title: 'Login Gagal',
+            description: 'NIK/Username dan Password harus diisi.',
+        });
+        return;
+    }
     setIsLoggingIn(true);
     
     try {
         const allUsers = await getUsers();
         const lowerCaseInput = nikOrUsername.toLowerCase();
         
+        // Find user by either NIK or current username from Firestore
         const userDetail = allUsers.find(
-            u => (u.username.toLowerCase() === lowerCaseInput || (u.nik && u.nik.toLowerCase() === lowerCaseInput))
+            u => (u.nik && u.nik.toLowerCase() === lowerCaseInput) || (u.username.toLowerCase() === lowerCaseInput)
         );
 
         if (!userDetail) {
@@ -51,8 +60,10 @@ export default function LoginPage() {
             return;
         }
 
+        // IMPORTANT: Always use the original username stored in the database to construct the email.
+        // This prevents login failures if the username display field is ever changed.
         const email = createEmail(userDetail.username);
-        // signInWithEmailAndPassword will trigger onAuthStateChanged in AuthProvider
+
         await signInWithEmailAndPassword(auth, email, password);
 
         toast({
