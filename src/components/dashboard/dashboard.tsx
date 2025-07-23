@@ -464,50 +464,18 @@ export function Dashboard() {
     }
   };
 
-  const [joggingValues, setJoggingValues] = useState({
-    aggregate: 200,
-    air: 15,
-    semen: 20,
-  });
-
-   const handleJoggingChange = (material: 'aggregate' | 'air' | 'semen', value: number) => {
-    if (!powerOn || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')) return;
-    setJoggingValues(prev => ({
-        ...prev,
-        [material]: value >= 0 ? value : 0
-    }));
-  };
-
   return (
-    <div className="space-y-4">
-        <WeightDisplayPanel
-            aggregateWeight={aggregateWeight}
-            airWeight={airWeight}
-            semenWeight={semenWeight}
-            targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2}
-            targetAir={currentTargetWeights.air}
-            targetSemen={currentTargetWeights.semen}
-            joggingValues={joggingValues}
-            onJoggingChange={handleJoggingChange}
-            disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
-        />
-
+    <div className="flex flex-col gap-4">
         <div className="grid grid-cols-12 gap-4">
             <div className="col-span-9">
-              <ControlPanel
-                powerOn={powerOn}
-                setPowerOn={handleSetPowerOn}
-                formulas={formulas}
-                operasiMode={operasiMode}
-                setOperasiMode={setOperasiMode}
-                handleProcessControl={handleProcessControl}
-                jobInfo={jobInfo}
-                setJobInfo={setJobInfo}
-                isManualProcessRunning={isManualProcessRunning}
-                isJobInfoLocked={isJobInfoLocked}
-                volumeWarning={volumeWarning}
-                scheduleStatusWarning={scheduleStatusWarning}
-                hasActiveSchedule={hasActiveSchedule}
+              <WeightDisplayPanel
+                  aggregateWeight={aggregateWeight}
+                  airWeight={airWeight}
+                  semenWeight={semenWeight}
+                  targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2}
+                  targetAir={currentTargetWeights.air}
+                  targetSemen={currentTargetWeights.semen}
+                  disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
               />
             </div>
             <div className="col-span-3">
@@ -524,6 +492,22 @@ export function Dashboard() {
               />
             </div>
         </div>
+        
+        <ControlPanel
+          powerOn={powerOn}
+          setPowerOn={handleSetPowerOn}
+          formulas={formulas}
+          operasiMode={operasiMode}
+          setOperasiMode={setOperasiMode}
+          handleProcessControl={handleProcessControl}
+          jobInfo={jobInfo}
+          setJobInfo={setJobInfo}
+          isManualProcessRunning={isManualProcessRunning}
+          isJobInfoLocked={isJobInfoLocked}
+          volumeWarning={volumeWarning}
+          scheduleStatusWarning={scheduleStatusWarning}
+          hasActiveSchedule={hasActiveSchedule}
+        />
         
         <ScheduleSheet isOperatorView={true} />
           
