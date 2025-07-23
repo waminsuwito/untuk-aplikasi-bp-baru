@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -118,8 +119,6 @@ export default function ManajemenKaryawanPage() {
     setUserToEdit(null);
   };
 
-  const usersForDisplay = Array.isArray(users) ? users.map(({ password, ...user }) => user) : [];
-
   if (isLoading || isAuthLoading) {
     return (
         <div className="w-full max-w-4xl space-y-6 mx-auto">
@@ -148,6 +147,8 @@ export default function ManajemenKaryawanPage() {
         </div>
     );
   }
+
+  const usersForDisplay = Array.isArray(users) ? users.map(({ password, ...user }) => user) : [];
 
   return (
     <div className="w-full max-w-4xl space-y-6 mx-auto">
