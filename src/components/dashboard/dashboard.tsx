@@ -113,35 +113,35 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    // Wait until authentication is fully resolved before proceeding
     if (isAuthLoading || !user) {
-        return;
+      return;
     }
 
     const db = getDatabase();
     const weightsRef = ref(db, 'weights');
     let unsubscribe: () => void;
 
-    // Function to initialize and start listening
     const initializeAndListen = async () => {
       try {
         const snapshot = await get(weightsRef);
         if (!snapshot.exists()) {
           addLog("Inisialisasi data timbangan...", "text-blue-400");
-          // Initializing the data if it doesn't exist
           await set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
         }
       } catch (error: any) {
         console.error("Firebase initialization error:", error);
-        toast({
-          variant: 'destructive',
-          title: 'Error Inisialisasi Database',
-          description: `Gagal menyiapkan data timbangan: ${error.message}`
-        });
-        return; // Don't attach listener if init fails
+        if (error.code === 'PERMISSION_DENIED') {
+            addLog("Koneksi ke timbangan gagal: Izin ditolak.", "text-destructive");
+        } else {
+            toast({
+              variant: 'destructive',
+              title: 'Error Inisialisasi Database',
+              description: `Gagal menyiapkan data timbangan: ${error.message}`
+            });
+        }
+        return;
       }
 
-      // If initialization was successful, attach the listener
       unsubscribe = onValue(weightsRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -161,7 +161,6 @@ export function Dashboard() {
 
     initializeAndListen();
 
-    // Cleanup function
     return () => {
       if (unsubscribe) {
         unsubscribe();
@@ -466,7 +465,7 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-12 gap-4">
+       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-9">
           <WeightDisplayPanel
               aggregateWeight={aggregateWeight}
