@@ -25,6 +25,7 @@ interface ProcessedVehicle extends Vehicle {
         name: string;
         nik: string;
     };
+    lastChecklistStatus?: 'BAIK' | 'RUSAK' | 'PERLU PERHATIAN' | null;
 }
 
 interface DialogInfo {
@@ -72,7 +73,7 @@ export default function ManajemenAlatPage() {
         const vehicles = vehiclesSnapshot.docs.map(doc => doc.data() as Vehicle);
         setAllVehicles(vehicles);
 
-        const users = await getUsers(); // This function now gets all users from Firestore
+        const users = await getUsers(); 
         const filteredUsers = users.map(({ password, ...rest }) => rest);
         setAllUsers(filteredUsers);
         
@@ -86,15 +87,10 @@ export default function ManajemenAlatPage() {
 
         const [tmSnapshot, loaderSnapshot] = await Promise.all([getDocs(tmChecklistsRef), getDocs(loaderChecklistsRef)]);
 
-        const tmReports = tmSnapshot.docs.map(doc => doc.data() as TruckChecklistReport);
-        const loaderReports = loaderSnapshot.docs.map(doc => doc.data() as TruckChecklistReport);
+        const allReports = [...tmSnapshot.docs.map(doc => doc.data() as TruckChecklistReport), ...loaderSnapshot.docs.map(doc => doc.data() as TruckChecklistReport)];
         
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
-        
-        const todaysReports = [...tmReports, ...loaderReports].filter(r => 
-            r.id.includes(todayStr) && r.location === user.location
-        );
-        setChecklistReports(todaysReports);
+        const relevantReports = allReports.filter(r => r.location === user.location);
+        setChecklistReports(relevantReports);
 
     } catch (error) {
         console.error("Failed to load management data:", error);
@@ -103,70 +99,69 @@ export default function ManajemenAlatPage() {
 
   useEffect(() => {
     loadData();
-    // No need for a storage event listener anymore since we are using Firebase,
-    // but a more advanced implementation would use onSnapshot for real-time updates.
-    // For now, a manual refresh or interval would be needed to see changes from other clients.
   }, [loadData]);
   
-  const processedVehicles = useMemo(() => {
+ const processedVehicles = useMemo((): ProcessedVehicle[] => {
     if (!user?.location) return [];
-  
-    const checklistReportsByUserNik: { [nik: string]: TruckChecklistReport } = {};
-    checklistReports.forEach(report => {
-        if (!checklistReportsByUserNik[report.userNik] || new Date(report.timestamp) > new Date(checklistReportsByUserNik[report.userNik].timestamp)) {
-            checklistReportsByUserNik[report.userNik] = report;
-        }
-    });
 
     const userMap = new Map(allUsers.map(u => [u.id, u]));
 
-    return allVehicles.map(vehicle => {
-        let finalStatus = vehicle.status;
-        let operator: ProcessedVehicle['operator'] | undefined = undefined;
+    // 1. Find the latest checklist report for each user
+    const latestChecklistByUserNik: { [nik: string]: TruckChecklistReport } = {};
+    checklistReports.forEach(report => {
+        if (!latestChecklistByUserNik[report.userNik] || new Date(report.timestamp) > new Date(latestChecklistByUserNik[report.userNik].timestamp)) {
+            latestChecklistByUserNik[report.userNik] = report;
+        }
+    });
 
+    return allVehicles.map(vehicle => {
         const assignment = assignments.find(a => a.vehicleId === vehicle.id);
         const assignedUser = assignment ? userMap.get(assignment.userId) : undefined;
+        const operator = assignedUser ? { name: assignedUser.username, nik: assignedUser.nik || '' } : undefined;
         
-        let checklistStatus: 'BAIK' | 'RUSAK' | 'PERLU PERHATIAN' | null = null;
-        if (assignedUser) {
-            operator = { name: assignedUser.username, nik: assignedUser.nik || '' };
-            const checklist = checklistReportsByUserNik[assignedUser.nik || ''];
-            if (checklist) {
-                const hasDamage = checklist.items.some(item => item.status === 'rusak');
-                const needsAttention = checklist.items.some(item => item.status === 'perlu_perhatian');
-                if (hasDamage) checklistStatus = 'RUSAK';
-                else if (needsAttention) checklistStatus = 'PERLU PERHATIAN';
-                else checklistStatus = 'BAIK';
-            }
+        let finalStatus = vehicle.status;
+        let lastChecklistStatus: ProcessedVehicle['lastChecklistStatus'] = null;
+
+        // 2. Determine checklist status based on the assigned user's latest report
+        if (operator?.nik && latestChecklistByUserNik[operator.nik]) {
+            const checklist = latestChecklistByUserNik[operator.nik];
+            const hasDamage = checklist.items.some(item => item.status === 'rusak');
+            const needsAttention = checklist.items.some(item => item.status === 'perlu_perhatian');
+
+            if (hasDamage) lastChecklistStatus = 'RUSAK';
+            else if (needsAttention) lastChecklistStatus = 'PERLU PERHATIAN';
+            else lastChecklistStatus = 'BAIK';
         }
-        
-        // Priority logic for status
+
+        // 3. Priority-based status determination
         if (finalStatus === 'RUSAK BERAT') {
-            // Manual RUSAK BERAT overrides everything
-        } else if (checklistStatus === 'RUSAK' || checklistStatus === 'PERLU PERHATIAN') {
-            // Checklist damage status takes priority over operational status
-            finalStatus = checklistStatus;
-        } else if (!assignedUser) {
-            // If no operator and no damage, it's waiting for an operator
+            // Highest priority, manual override
+        } else if (lastChecklistStatus === 'RUSAK') {
+            finalStatus = 'RUSAK';
+        } else if (lastChecklistStatus === 'PERLU PERHATIAN') {
+            finalStatus = 'PERLU PERHATIAN';
+        } else if (!operator) {
             finalStatus = 'BELUM ADA SOPIR';
-        } else if (checklistStatus) {
-            // If there's an operator and a clean checklist
-            finalStatus = checklistStatus; // Will be 'BAIK'
         } else {
-            // Default to BAIK if status was empty and has an operator but no checklist yet
+            // Operator assigned, no damage reported
             finalStatus = 'BAIK';
         }
-        
-        return { ...vehicle, status: finalStatus, operator };
+
+        return { ...vehicle, status: finalStatus, operator, lastChecklistStatus };
     });
-  }, [allVehicles, allUsers, checklistReports, user, assignments]);
+}, [allVehicles, allUsers, checklistReports, user, assignments]);
 
   const filteredData = useMemo(() => {
     if (!user?.location) {
       return { totalAlat: [], alatBaik: [], perluPerhatian: [], alatRusak: [], alatRusakBerat: [], belumChecklist: [], alatBaikNoOperator: [] };
     }
     
-    const checklistSubmittedNiks = new Set(checklistReports.map(report => report.userNik));
+    const todaysChecklistNiks = new Set(
+        checklistReports
+            .filter(r => format(new Date(r.timestamp), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd'))
+            .map(report => report.userNik)
+    );
+
     const operators = allUsers.filter(u => 
         (u.jabatan?.includes('SOPIR') || u.jabatan?.includes('OPRATOR')) && 
         u.location === user.location
@@ -174,7 +169,7 @@ export default function ManajemenAlatPage() {
     
     const operatorsBelumChecklist = operators.filter(op => {
       const associatedVehicle = processedVehicles.find(v => v.operator?.nik === op.nik);
-      return associatedVehicle?.status !== 'RUSAK BERAT' && !checklistSubmittedNiks.has(op.nik || '');
+      return associatedVehicle?.status !== 'RUSAK BERAT' && !todaysChecklistNiks.has(op.nik || '');
     });
 
     const alatBaik = processedVehicles.filter(v => v.status === 'BAIK');

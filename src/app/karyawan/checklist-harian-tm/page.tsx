@@ -39,7 +39,7 @@ export default function ChecklistHarianTmPage() {
     const [checklistItems, setChecklistItems] = useState<TruckChecklistItem[]>(
         checklistItemsDefinition.map(item => ({ ...item, status: 'baik', photo: null, notes: '' }))
     );
-    const [isSubmittedToday, setIsSubmittedToday] = useState(false);
+    const [lastSubmissionTime, setLastSubmissionTime] = useState<Date | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [cameraForItem, setCameraForItem] = useState<string | null>(null);
 
@@ -56,7 +56,7 @@ export default function ChecklistHarianTmPage() {
                 
                 if (todaysReport) {
                     setChecklistItems(todaysReport.items);
-                    setIsSubmittedToday(true);
+                    setLastSubmissionTime(new Date(todaysReport.timestamp));
                 }
             } catch (error) {
                 console.error("Failed to load today's checklist report", error);
@@ -78,7 +78,7 @@ export default function ChecklistHarianTmPage() {
             stopCamera();
             return;
         }
-        stopCamera(); // Close any other open camera instance
+        stopCamera(); 
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -138,12 +138,12 @@ export default function ChecklistHarianTmPage() {
         const damagedItems = report.items.filter(item => item.status === 'rusak' || item.status === 'perlu_perhatian');
 
         if (damagedItems.length === 0) {
-            return; // No damage, no WO needed
+            return; 
         }
 
         const newWorkOrder: WorkOrder = {
             id: `WO-${report.id}`,
-            assignedMechanics: [], // Mekanik akan ditugaskan nanti
+            assignedMechanics: [], 
             vehicle: {
                 reportId: report.id,
                 userId: report.userId,
@@ -163,7 +163,6 @@ export default function ChecklistHarianTmPage() {
             const storedWorkOrders = localStorage.getItem(WORK_ORDER_STORAGE_KEY);
             const allWorkOrders: WorkOrder[] = storedWorkOrders ? JSON.parse(storedWorkOrders) : [];
             
-            // Check if a WO for this checklist already exists
             const woExists = allWorkOrders.some(wo => wo.id === newWorkOrder.id);
             if (!woExists) {
                 allWorkOrders.push(newWorkOrder);
@@ -192,7 +191,7 @@ export default function ChecklistHarianTmPage() {
         }
         
         setIsLoading(true);
-
+        const submissionTime = new Date();
         const dailyKey = getDailyChecklistKey(user.id);
         const report: TruckChecklistReport = {
             id: dailyKey,
@@ -200,13 +199,14 @@ export default function ChecklistHarianTmPage() {
             userNik: user.nik,
             username: user.username,
             location: user.location as UserLocation,
-            timestamp: new Date().toISOString(),
+            timestamp: submissionTime.toISOString(),
             items: checklistItems,
+            vehicleType: 'tm',
         };
 
         try {
             const storedGlobal = localStorage.getItem(CHECKLIST_STORAGE_KEY);
-            const allGlobalReports: TruckChecklistReport[] = storedGlobal ? JSON.parse(storedGlobal) : [];
+            let allGlobalReports: TruckChecklistReport[] = storedGlobal ? JSON.parse(storedGlobal) : [];
             
             const existingReportIndex = allGlobalReports.findIndex(r => r.id === dailyKey);
             if (existingReportIndex > -1) {
@@ -218,9 +218,8 @@ export default function ChecklistHarianTmPage() {
             localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(allGlobalReports));
 
             toast({ title: 'Berhasil', description: 'Checklist harian berhasil dikirim.' });
-            setIsSubmittedToday(true);
+            setLastSubmissionTime(submissionTime);
 
-            // Automatically create a Work Order if there's damage
             createWorkOrderFromChecklist(report);
 
         } catch (error) {
@@ -239,18 +238,18 @@ export default function ChecklistHarianTmPage() {
                     Checklist Harian Truck Mixer (TM)
                 </CardTitle>
                 <CardDescription>
-                    Lakukan pemeriksaan berikut sebelum memulai operasi harian.
+                    Lakukan pemeriksaan berikut sebelum memulai operasi harian. Anda bisa mengirim ulang checklist jika kondisi kendaraan berubah.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <canvas ref={canvasRef} className="hidden" />
 
-                {isSubmittedToday && (
-                    <Alert variant="default" className="bg-green-100 dark:bg-green-900/40 border-green-500">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <AlertTitle>Laporan Terkirim</AlertTitle>
+                {lastSubmissionTime && (
+                    <Alert variant="default" className="bg-blue-100 dark:bg-blue-900/40 border-blue-500">
+                        <CheckCircle className="h-4 w-4 text-blue-600" />
+                        <AlertTitle>Laporan Terakhir Dikirim</AlertTitle>
                         <AlertDescription>
-                            Anda sudah mengirimkan checklist untuk hari ini. Terima kasih.
+                            Anda terakhir mengirimkan laporan pada: {format(lastSubmissionTime, 'dd MMMM yyyy, HH:mm:ss')}.
                         </AlertDescription>
                     </Alert>
                 )}
@@ -265,7 +264,7 @@ export default function ChecklistHarianTmPage() {
                                         value={item.status || ""}
                                         onValueChange={(value) => handleStatusChange(item.id, value as ChecklistStatus)}
                                         className="space-y-2"
-                                        disabled={isSubmittedToday || isLoading}
+                                        disabled={isLoading}
                                     >
                                         <div className="flex items-center space-x-2">
                                             <RadioGroupItem value="baik" id={`${item.id}-baik`} />
@@ -292,7 +291,7 @@ export default function ChecklistHarianTmPage() {
                                                 value={item.notes || ''}
                                                 onChange={(e) => handleNotesChange(item.id, e.target.value)}
                                                 style={{ textTransform: 'uppercase' }}
-                                                disabled={isSubmittedToday || isLoading}
+                                                disabled={isLoading}
                                                 rows={3}
                                             />
                                         </div>
@@ -318,7 +317,7 @@ export default function ChecklistHarianTmPage() {
                                             <Button
                                                 variant="outline"
                                                 onClick={() => handleActivateCamera(item.id)}
-                                                disabled={isSubmittedToday || isLoading}
+                                                disabled={isLoading}
                                             >
                                                 <Upload className="mr-2 h-4 w-4" /> Upload Foto
                                             </Button>
@@ -333,17 +332,12 @@ export default function ChecklistHarianTmPage() {
             <CardFooter>
                  <Button
                     onClick={handleSubmit}
-                    disabled={isLoading || isSubmittedToday}
+                    disabled={isLoading}
                     className="w-full"
                     size="lg"
                 >
                     {isLoading ? (
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    ) : isSubmittedToday ? (
-                        <>
-                            <CheckCircle className="mr-2 h-5 w-5" />
-                            Laporan Hari Ini Sudah Dikirim
-                        </>
                     ) : (
                         'Kirim Checklist'
                     )}

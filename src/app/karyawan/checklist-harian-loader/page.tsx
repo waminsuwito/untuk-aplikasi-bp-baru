@@ -41,7 +41,7 @@ export default function ChecklistHarianLoaderPage() {
 
     const [checklistItems, setChecklistItems] = useState<TruckChecklistItem[]>(getInitialChecklistState());
     const [isLoading, setIsLoading] = useState(false);
-    const [isSubmittedToday, setIsSubmittedToday] = useState(false);
+    const [lastSubmissionTime, setLastSubmissionTime] = useState<Date | null>(null);
     const [cameraForItem, setCameraForItem] = useState<string | null>(null);
 
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -57,7 +57,7 @@ export default function ChecklistHarianLoaderPage() {
                 
                 if (todaysReport) {
                     setChecklistItems(todaysReport.items);
-                    setIsSubmittedToday(true);
+                    setLastSubmissionTime(new Date(todaysReport.timestamp));
                 }
             } catch (error) {
                 console.error("Failed to load today's checklist report", error);
@@ -139,12 +139,12 @@ export default function ChecklistHarianLoaderPage() {
         const damagedItems = report.items.filter(item => item.status === 'rusak' || item.status === 'perlu_perhatian');
 
         if (damagedItems.length === 0) {
-            return; // No damage, no WO needed
+            return;
         }
 
         const newWorkOrder: WorkOrder = {
             id: `WO-${report.id}`,
-            assignedMechanics: [], // Mekanik akan ditugaskan nanti
+            assignedMechanics: [],
             vehicle: {
                 reportId: report.id,
                 userId: report.userId,
@@ -164,7 +164,6 @@ export default function ChecklistHarianLoaderPage() {
             const storedWorkOrders = localStorage.getItem(WORK_ORDER_STORAGE_KEY);
             const allWorkOrders: WorkOrder[] = storedWorkOrders ? JSON.parse(storedWorkOrders) : [];
             
-            // Check if a WO for this checklist already exists
             const woExists = allWorkOrders.some(wo => wo.id === newWorkOrder.id);
             if (!woExists) {
                 allWorkOrders.push(newWorkOrder);
@@ -192,7 +191,7 @@ export default function ChecklistHarianLoaderPage() {
         }
         
         setIsLoading(true);
-
+        const submissionTime = new Date();
         const dailyKey = getDailyChecklistKey(user.id);
         
         try {
@@ -206,8 +205,9 @@ export default function ChecklistHarianLoaderPage() {
                 userNik: user.nik,
                 username: user.username,
                 location: user.location as UserLocation,
-                timestamp: new Date().toISOString(),
+                timestamp: submissionTime.toISOString(),
                 items: checklistItems,
+                vehicleType: 'loader',
             };
             
             if (existingReportIndex > -1) {
@@ -219,9 +219,8 @@ export default function ChecklistHarianLoaderPage() {
             localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(allGlobalReports));
 
             toast({ title: 'Berhasil', description: 'Checklist harian berhasil dikirim.' });
-            setIsSubmittedToday(true);
+            setLastSubmissionTime(submissionTime);
 
-            // Automatically create a Work Order if there's damage
             createWorkOrderFromChecklist(report);
 
         } catch (error) {
@@ -240,17 +239,18 @@ export default function ChecklistHarianLoaderPage() {
                     Checklist Harian Wheel Loader
                 </CardTitle>
                 <CardDescription>
+                     Lakukan pemeriksaan berikut sebelum memulai operasi harian. Anda bisa mengirim ulang checklist jika kondisi kendaraan berubah.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <canvas ref={canvasRef} className="hidden" />
 
-                {isSubmittedToday && (
-                    <Alert variant="default" className="bg-green-100 dark:bg-green-900/40 border-green-500">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <AlertTitle>Laporan Terkirim</AlertTitle>
+                {lastSubmissionTime && (
+                     <Alert variant="default" className="bg-blue-100 dark:bg-blue-900/40 border-blue-500">
+                        <CheckCircle className="h-4 w-4 text-blue-600" />
+                        <AlertTitle>Laporan Terakhir Dikirim</AlertTitle>
                         <AlertDescription>
-                            Anda sudah mengirimkan checklist untuk hari ini. Terima kasih.
+                            Anda terakhir mengirimkan laporan pada: {format(lastSubmissionTime, 'dd MMMM yyyy, HH:mm:ss')}.
                         </AlertDescription>
                     </Alert>
                 )}
@@ -265,7 +265,7 @@ export default function ChecklistHarianLoaderPage() {
                                         value={item.status || ""}
                                         onValueChange={(value) => handleStatusChange(item.id, value as ChecklistStatus)}
                                         className="space-y-2"
-                                        disabled={isLoading || isSubmittedToday}
+                                        disabled={isLoading}
                                     >
                                         <div className="flex items-center space-x-2">
                                             <RadioGroupItem value="baik" id={`${item.id}-baik`} />
@@ -292,7 +292,7 @@ export default function ChecklistHarianLoaderPage() {
                                                 value={item.notes || ''}
                                                 onChange={(e) => handleNotesChange(item.id, e.target.value)}
                                                 style={{ textTransform: 'uppercase' }}
-                                                disabled={isLoading || isSubmittedToday}
+                                                disabled={isLoading}
                                                 rows={3}
                                             />
                                         </div>
@@ -318,7 +318,7 @@ export default function ChecklistHarianLoaderPage() {
                                             <Button
                                                 variant="outline"
                                                 onClick={() => handleActivateCamera(item.id)}
-                                                disabled={isLoading || isSubmittedToday}
+                                                disabled={isLoading}
                                             >
                                                 <Upload className="mr-2 h-4 w-4" /> Upload Foto
                                             </Button>
@@ -333,17 +333,12 @@ export default function ChecklistHarianLoaderPage() {
             <CardFooter>
                 <Button
                     onClick={handleSubmit}
-                    disabled={isLoading || isSubmittedToday}
+                    disabled={isLoading}
                     className="w-full"
                     size="lg"
                 >
                     {isLoading ? (
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    ) : isSubmittedToday ? (
-                        <>
-                            <CheckCircle className="mr-2 h-5 w-5" />
-                            Laporan Hari Ini Sudah Dikirim
-                        </>
                     ) : (
                         'Kirim Checklist'
                     )}
