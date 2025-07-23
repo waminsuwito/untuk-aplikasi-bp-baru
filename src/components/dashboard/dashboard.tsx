@@ -44,50 +44,6 @@ const PRINTER_SETTINGS_KEY = 'app-printer-settings';
 const PRODUCTION_HISTORY_KEY = 'app-production-history';
 type PrintMode = 'preview' | 'direct' | 'save';
 
-// Helper component for weight simulation
-function WeightSimulator() {
-  const { user } = useAuth();
-
-  const updateWeight = async (material: 'aggregate' | 'air' | 'semen', amount: number) => {
-    if (!user || user.jabatan !== 'OPRATOR BP') return;
-    const materialRef = ref(database, `weights/${material}`);
-    const snapshot = await get(materialRef);
-    const currentValue = snapshot.val() || 0;
-    await set(materialRef, Math.max(0, currentValue + amount));
-  };
-  
-  if (user?.jabatan !== 'OPRATOR BP') return null;
-
-  return (
-    <Card className="p-4 bg-muted/50 no-print">
-      <Label className="text-center block mb-2 font-semibold text-primary">Timbangan Simulator (Development)</Label>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="flex flex-col items-center gap-1">
-          <p className="text-sm">Aggregate</p>
-          <div className="flex gap-1">
-            <Button size="sm" onClick={() => updateWeight('aggregate', -100)}><Minus /></Button>
-            <Button size="sm" onClick={() => updateWeight('aggregate', 100)}><Plus /></Button>
-          </div>
-        </div>
-         <div className="flex flex-col items-center gap-1">
-          <p className="text-sm">Air</p>
-          <div className="flex gap-1">
-            <Button size="sm" onClick={() => updateWeight('air', -10)}><Minus /></Button>
-            <Button size="sm" onClick={() => updateWeight('air', 10)}><Plus /></Button>
-          </div>
-        </div>
-         <div className="flex flex-col items-center gap-1">
-          <p className="text-sm">Semen</p>
-          <div className="flex gap-1">
-            <Button size="sm" onClick={() => updateWeight('semen', -50)}><Minus /></Button>
-            <Button size="sm" onClick={() => updateWeight('semen', 50)}><Plus /></Button>
-          </div>
-        </div>
-      </div>
-    </Card>
-  )
-}
-
 export function Dashboard() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
@@ -524,7 +480,6 @@ export function Dashboard() {
 
   return (
     <div className="space-y-4">
-        <WeightSimulator />
         <WeightDisplayPanel
             aggregateWeight={aggregateWeight}
             airWeight={airWeight}
