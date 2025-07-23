@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -25,23 +26,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      // Keep loading until we have user details and have performed the redirect check
-      setIsLoading(true);
       if (firebaseUser) {
         const userDetails = await getCurrentUserDetails(firebaseUser.uid);
         setUser(userDetails);
         
-        if (pathname === '/' && userDetails) {
-            const targetRoute = getDefaultRouteForUser(userDetails);
-            router.replace(targetRoute);
+        // Redirect logic for logged-in users
+        if (userDetails) {
+          const defaultRoute = getDefaultRouteForUser(userDetails);
+          // If user is on the login page, redirect them to their dashboard
+          if (pathname === '/') {
+            router.replace(defaultRoute);
+          }
+          // Optional: Add logic here to redirect if they are on a wrong path for their role
         }
       } else {
         setUser(null);
+        // If user is not logged in and not on the login page, redirect to login
         if (pathname !== '/') {
-            router.replace('/');
+          router.replace('/');
         }
       }
-      // Only stop loading after all checks and potential redirects are done
+      // Finished checking, stop loading
       setIsLoading(false);
     });
 
@@ -49,9 +54,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [pathname, router]);
 
   const logout = async () => {
+    setIsLoading(true);
     await firebaseLogout();
     setUser(null);
     router.replace('/');
+    // No need to set isLoading to false, as the onAuthStateChanged will handle it
   };
 
   if (isLoading) {
@@ -60,18 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
-  }
-
-  // If loading is done, and we're not on the login page, but have no user, don't render children.
-  // This prevents children from rendering prematurely and accessing protected resources.
-  if (!user && pathname !== '/') {
-    return null; 
-  }
-  
-  // If loading is done, and we are on the login page but have a user, don't render children.
-  // The redirect in useEffect will handle navigation.
-  if (user && pathname === '/') {
-    return null;
   }
 
   return (
