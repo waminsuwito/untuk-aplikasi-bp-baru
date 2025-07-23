@@ -143,29 +143,23 @@ export function AttendanceForm() {
 
             if (personalAttendanceRecord?.clockIn) {
                 if (currentAction === 'clockOut') {
-                    return { message: `Selamat sore/malam Sdr. ${userName}, terimakasih sudah melakukan pekerjaan anda hari ini, tetap semangat dan berusaha besok lebih baik lagi. Selamat istirahat, terimakasih.`, variant: 'default' as const, icon: <ThumbsUp className="h-5 w-5 text-green-500" /> };
+                    return { message: `Selamat sore, ${userName}. Waktunya absen pulang, tetap semangat!`, variant: 'default' as const, icon: <ThumbsUp className="h-5 w-5 text-green-500" /> };
                 } else {
                     return { message: `Anda sudah absen masuk hari ini, ${userName}. Silakan kembali lagi nanti untuk absen pulang.`, variant: 'default' as const, icon: <Timer className="h-5 w-5" /> };
                 }
             }
 
             if (currentAction === 'clockIn') {
-                if (currentTime >= 30 && currentTime <= 300) {
-                    return { message: `Selamat pagi Sdr. ${userName}, kenapa absen masuk masih tengah malam begini? Baru selesai lemburkah? Atau habis begadang? Mohon dapat lebih disiplin waktu absen masuk. Terimakasih.`, variant: 'destructive' as const, icon: <Bed className="h-5 w-5" /> };
-                }
-                if (currentTime >= 301 && currentTime <= 600) {
-                    return { message: `Selamat pagi Sdr. ${userName}, cepat sekali absen masuknya, habis lembur atau habis begadang? Semoga memang habis lembur ya. Ingat, begadang yang tidak perlu itu merusak badan. Jaga kesehatan, terimakasih.`, variant: 'default' as const, icon: <Coffee className="h-5 w-5 text-amber-600" /> };
-                }
                 if (currentTime >= 601 && currentTime <= 730) {
-                    return { message: `Selamat pagi Sdr. ${userName}, terimakasih sudah absen tepat waktu. Selamat bekerja, jangan lupa berdo'a. Terimakasih.`, variant: 'default' as const, icon: <ThumbsUp className="h-5 w-5 text-green-500" /> };
+                    return { message: `Selamat pagi, ${userName}. Terimakasih sudah absen tepat waktu. Selamat bekerja!`, variant: 'default' as const, icon: <ThumbsUp className="h-5 w-5 text-green-500" /> };
                 }
-                if (currentTime >= 731 && currentTime <= 1705) {
-                    return { message: `Selamat pagi, siang, sore, Sdr. ${userName}, kedisiplinan anda dalam absensi perlu diperbaiki. Tolong lain kali absen tepat Waktu dan jangan terlambat. terimakasih.`, variant: 'destructive' as const, icon: <AlertTriangle className="h-5 w-5" /> };
+                if (currentTime > 730) {
+                    return { message: `Selamat pagi/siang, ${userName}. Anda terlambat, mohon lebih disiplin lain kali.`, variant: 'destructive' as const, icon: <AlertTriangle className="h-5 w-5" /> };
                 }
             }
             
-            // This is the default case when no other condition is met.
-            return { message: `Saat ini di luar jam absensi. Silakan kembali lagi nanti, ${userName}.`, variant: 'default' as const, icon: <Timer className="h-5 w-5" /> };
+            // Default case
+            return { message: `Selamat datang, ${userName}. Silakan lakukan absensi.`, variant: 'default' as const, icon: <Info className="h-5 w-5" /> };
         };
 
         const newDescription = getDynamicDescription();

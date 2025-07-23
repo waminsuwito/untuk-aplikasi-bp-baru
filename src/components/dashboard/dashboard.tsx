@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getDatabase, ref, onValue, set, get } from 'firebase/database';
-import { getAuth, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { WeightDisplayPanel } from './material-inventory';
 import { ControlPanel } from './control-panel';
 import { StatusPanel, type TimerDisplayState } from './status-panel';
@@ -51,8 +50,7 @@ function WeightSimulator() {
 
   const updateWeight = async (material: 'aggregate' | 'air' | 'semen', amount: number) => {
     if (!user || user.jabatan !== 'OPRATOR BP') return;
-    const db = getDatabase();
-    const materialRef = ref(db, `weights/${material}`);
+    const materialRef = ref(database, `weights/${material}`);
     const snapshot = await get(materialRef);
     const currentValue = snapshot.val() || 0;
     await set(materialRef, Math.max(0, currentValue + amount));
@@ -159,49 +157,35 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (!powerOn) return;
+    if (!powerOn || !user) return;
 
-    const auth = getAuth();
-    const db = getDatabase();
+    const weightsRef = ref(database, 'weights');
     
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-        if (firebaseUser && user?.jabatan === 'OPRATOR BP') {
-            const weightsRef = ref(db, 'weights');
-
-            // Check if data exists, if not, initialize it.
-            const snapshot = await get(weightsRef);
-            if (!snapshot.exists()) {
-                console.log("Path '/weights' does not exist. Initializing with default values.");
-                await set(weightsRef, {
-                    aggregate: 0,
-                    air: 0,
-                    semen: 0
-                });
-            }
-            
-            // Now, set up the listener
-            const unsubscribeDB = onValue(weightsRef, (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    setAggregateWeight(data.aggregate || 0);
-                    setAirWeight(data.air || 0);
-                    setSemenWeight(data.semen || 0);
-                }
-            }, (error) => {
-                console.error("Firebase weight listener error:", error);
-                toast({
-                    variant: 'destructive',
-                    title: 'Koneksi Timbangan Gagal',
-                    description: 'Tidak dapat terhubung ke Realtime Database untuk data timbangan.'
-                });
-            });
-            
-            return () => unsubscribeDB();
-        }
+    // Set initial values if they don't exist
+    get(weightsRef).then((snapshot) => {
+      if (!snapshot.exists()) {
+        console.log("Path '/weights' does not exist. Initializing...");
+        set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
+      }
     });
 
-    return () => unsubscribeAuth();
+    const unsubscribe = onValue(weightsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setAggregateWeight(data.aggregate || 0);
+        setAirWeight(data.air || 0);
+        setSemenWeight(data.semen || 0);
+      }
+    }, (error) => {
+      console.error("Firebase weight listener error:", error);
+      toast({
+          variant: 'destructive',
+          title: 'Koneksi Timbangan Gagal',
+          description: `Tidak dapat memuat data timbangan: ${error.message}`
+      });
+    });
 
+    return () => unsubscribe();
   }, [powerOn, user, toast]);
 
 

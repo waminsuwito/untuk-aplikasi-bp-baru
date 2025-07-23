@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -25,56 +26,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      setIsLoading(true);
       if (firebaseUser) {
         const userDetails = await getCurrentUserDetails(firebaseUser.uid);
         setUser(userDetails);
-        
-        const targetRoute = getDefaultRouteForUser(userDetails!);
-        if (pathname === '/') {
-          router.replace(targetRoute);
+
+        const isLoginPage = pathname === '/';
+        if (isLoginPage && userDetails) {
+            const targetRoute = getDefaultRouteForUser(userDetails);
+            router.replace(targetRoute);
         }
       } else {
         setUser(null);
-        if (pathname !== '/') {
-          router.replace('/');
+        const isProtectedPage = pathname !== '/';
+        if (isProtectedPage) {
+            router.replace('/');
         }
       }
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once on mount
+  }, [pathname, router]);
 
   const logout = async () => {
-    setIsLoading(true);
     await firebaseLogout();
     setUser(null);
     router.replace('/');
-    // isLoading will be set to false by the onAuthStateChanged listener
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  // If not authenticated and not on the login page, show loading while redirecting
-  if (!user && pathname !== '/') {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
-  }
-  
-  // If authenticated and on the login page, show loading while redirecting
-  if (user && pathname === '/') {
-     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
