@@ -116,7 +116,7 @@ export function Dashboard() {
   useEffect(() => {
     if (!powerOn) return;
 
-    const weightsRef = ref(database, 'realtime/weights');
+    const weightsRef = ref(database, 'weights');
 
     const unsubscribeWeights = onValue(weightsRef, (snapshot) => {
       const data = snapshot.val();
