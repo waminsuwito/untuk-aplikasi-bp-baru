@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getDatabase, ref, onValue, set } from 'firebase/database';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { WeightDisplayPanel } from './material-inventory';
 import { ControlPanel } from './control-panel';
 import { StatusPanel, type TimerDisplayState } from './status-panel';
@@ -114,30 +115,40 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (!powerOn || !user) return; // Wait for user to be authenticated
+    if (!powerOn) return;
 
-    const weightsRef = ref(database, 'weights');
+    // Use Firebase's own onAuthStateChanged to ensure the user is authenticated before listening.
+    // This is more reliable than relying on the React context's user state alone.
+    const auth = getAuth();
+    const authUnsubscribe = onAuthStateChanged(auth, (authedUser) => {
+        if (authedUser) {
+            // User is signed in, now we can safely attach the database listener.
+            const weightsRef = ref(database, 'weights');
+            const weightsUnsubscribe = onValue(weightsRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    setAggregateWeight(data.aggregate || 0);
+                    setAirWeight(data.air || 0);
+                    setSemenWeight(data.semen || 0);
+                }
+            }, (error) => {
+                console.error("Firebase weight listener error:", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Koneksi Timbangan Gagal',
+                    description: 'Tidak dapat terhubung ke Realtime Database untuk data timbangan.'
+                });
+            });
 
-    const unsubscribeWeights = onValue(weightsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setAggregateWeight(data.aggregate || 0);
-        setAirWeight(data.air || 0);
-        setSemenWeight(data.semen || 0);
-      }
-    }, (error) => {
-      console.error("Firebase weight listener error:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Koneksi Timbangan Gagal',
-        description: 'Tidak dapat terhubung ke Realtime Database untuk data timbangan.'
-      });
+            // Return the database listener's unsubscribe function to be called when the auth state changes.
+            return () => weightsUnsubscribe();
+        }
     });
 
-    return () => {
-      unsubscribeWeights();
-    };
-  }, [powerOn, user, toast]);
+    // Cleanup the auth listener when the component unmounts or power is turned off.
+    return () => authUnsubscribe();
+  }, [powerOn, toast]);
+
 
   useEffect(() => {
     const loadedFormulas = getFormulas();
