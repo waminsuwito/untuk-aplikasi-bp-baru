@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -183,7 +184,36 @@ export function Dashboard() {
   }
   
   const currentTargetWeights = useMemo(() => {
-    // This logic remains the same
+    const defaultWeights = {
+      pasir1: 0, pasir2: 0, batu1: 0, batu2: 0, batu3: 0, batu4: 0,
+      air: 0, semen: 0, additive1: 0, additive2: 0, additive3: 0,
+    };
+
+    if (!jobInfo.selectedFormulaId || formulas.length === 0) {
+      return defaultWeights;
+    }
+    const formula = formulas.find(f => f.id === jobInfo.selectedFormulaId);
+    if (!formula) {
+      return defaultWeights;
+    }
+
+    const targetVolumeNum = Number(jobInfo.targetVolume) || 0;
+    const jumlahMixingNum = Number(jobInfo.jumlahMixing) || 1;
+    const factor = jumlahMixingNum > 0 ? targetVolumeNum / jumlahMixingNum : 0;
+
+    return {
+      pasir1: (formula.pasir1 || 0) * factor,
+      pasir2: (formula.pasir2 || 0) * factor,
+      batu1: (formula.batu1 || 0) * factor,
+      batu2: (formula.batu2 || 0) * factor,
+      batu3: (formula.batu3 || 0) * factor,
+      batu4: (formula.batu4 || 0) * factor,
+      air: (formula.air || 0) * factor,
+      semen: (formula.semen || 0) * factor,
+      additive1: (formula.additive1 || 0) * factor,
+      additive2: (formula.additive2 || 0) * factor,
+      additive3: (formula.additive3 || 0) * factor,
+    };
   }, [jobInfo.selectedFormulaId, jobInfo.targetVolume, jobInfo.jumlahMixing, formulas]);
   
   const finishAndPrintBatch = () => {
