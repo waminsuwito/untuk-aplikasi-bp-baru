@@ -466,72 +466,72 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-9">
-              <WeightDisplayPanel
-                  aggregateWeight={aggregateWeight}
-                  airWeight={airWeight}
-                  semenWeight={semenWeight}
-                  targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2}
-                  targetAir={currentTargetWeights.air}
-                  targetSemen={currentTargetWeights.semen}
-                  disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
-              />
-            </div>
-            <div className="col-span-3">
-              <StatusPanel 
-                log={activityLog}
-                timerDisplay={timerDisplay}
-                mixingTime={mixingTime}
-                setMixingTime={setMixingTime}
+      <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-9">
+            <WeightDisplayPanel
+                aggregateWeight={aggregateWeight}
+                airWeight={airWeight}
+                semenWeight={semenWeight}
+                targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2}
+                targetAir={currentTargetWeights.air}
+                targetSemen={currentTargetWeights.semen}
                 disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
-                currentMixInfo={ operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete' ? {
-                  current: currentMixNumber,
-                  total: jobInfo.jumlahMixing
-                } : undefined}
-              />
-            </div>
-        </div>
-        
-        <ControlPanel
-          powerOn={powerOn}
-          setPowerOn={handleSetPowerOn}
-          formulas={formulas}
-          operasiMode={operasiMode}
-          setOperasiMode={setOperasiMode}
-          handleProcessControl={handleProcessControl}
-          jobInfo={jobInfo}
-          setJobInfo={setJobInfo}
-          isManualProcessRunning={isManualProcessRunning}
-          isJobInfoLocked={isJobInfoLocked}
-          volumeWarning={volumeWarning}
-          scheduleStatusWarning={scheduleStatusWarning}
-          hasActiveSchedule={hasActiveSchedule}
-        />
-        
-        <ScheduleSheet isOperatorView={true} />
-          
-        <Sheet open={showPrintPreview} onOpenChange={setShowPrintPreview}>
-        <SheetContent className="w-full sm:max-w-4xl p-0 flex flex-col">
-            <SheetHeader className="p-6 bg-background border-b">
-                <SheetTitle>Print Preview</SheetTitle>
-                <SheetDescription>
-                Review the batch details below. Use the print button to get a physical copy.
-                </SheetDescription>
-            </SheetHeader>
-            <PrintPreview 
-                data={completedBatchData}
-                operatorName={user?.username}
-                onClose={() => setShowPrintPreview(false)} 
             />
-        </SheetContent>
-        </Sheet>
+          </div>
+          <div className="col-span-3">
+            <StatusPanel 
+              log={activityLog}
+              timerDisplay={timerDisplay}
+              mixingTime={mixingTime}
+              setMixingTime={setMixingTime}
+              disabled={!powerOn || isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete')}
+              currentMixInfo={ operasiMode === 'AUTO' && autoProcessStep !== 'idle' && autoProcessStep !== 'complete' ? {
+                current: currentMixNumber,
+                total: jobInfo.jumlahMixing
+              } : undefined}
+            />
+          </div>
+      </div>
+      
+      <ControlPanel
+        powerOn={powerOn}
+        setPowerOn={handleSetPowerOn}
+        formulas={formulas}
+        operasiMode={operasiMode}
+        setOperasiMode={setOperasiMode}
+        handleProcessControl={handleProcessControl}
+        jobInfo={jobInfo}
+        setJobInfo={setJobInfo}
+        isManualProcessRunning={isManualProcessRunning}
+        isJobInfoLocked={isJobInfoLocked}
+        volumeWarning={volumeWarning}
+        scheduleStatusWarning={scheduleStatusWarning}
+        hasActiveSchedule={hasActiveSchedule}
+      />
+      
+      <ScheduleSheet isOperatorView={true} />
         
-        <div className="hidden">
-            <div id="direct-print-content">
-                {completedBatchData && <PrintPreview data={completedBatchData} operatorName={user?.username} onClose={() => {}} />}
-            </div>
-        </div>
+      <Sheet open={showPrintPreview} onOpenChange={setShowPrintPreview}>
+      <SheetContent className="w-full sm:max-w-4xl p-0 flex flex-col">
+          <SheetHeader className="p-6 bg-background border-b">
+              <SheetTitle>Print Preview</SheetTitle>
+              <SheetDescription>
+              Review the batch details below. Use the print button to get a physical copy.
+              </SheetDescription>
+          </SheetHeader>
+          <PrintPreview 
+              data={completedBatchData}
+              operatorName={user?.username}
+              onClose={() => setShowPrintPreview(false)} 
+          />
+      </SheetContent>
+      </Sheet>
+      
+      <div className="hidden">
+          <div id="direct-print-content">
+              {completedBatchData && <PrintPreview data={completedBatchData} operatorName={user?.username} onClose={() => {}} />}
+          </div>
+      </div>
     </div>
   );
 }
