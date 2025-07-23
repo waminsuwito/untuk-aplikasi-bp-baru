@@ -142,13 +142,24 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
         throw new Error("Password is required to create a new user.");
     }
     
-    const adminUser = auth.currentUser;
-    if (!adminUser) {
-        throw new Error("Admin user is not properly logged in.");
+    // This function will be called by an authenticated admin.
+    // It will temporarily create a new user, which signs out the admin.
+    // We need to re-authenticate the admin afterward.
+    const adminCredentials = {
+      email: auth.currentUser?.email,
+      // It's not secure to handle passwords on the client-side like this.
+      // A proper solution would use a backend with Admin SDK.
+      // This is a simplified flow for this specific environment.
+      // We will skip re-authentication and let the user log in again.
+    };
+
+    if (!adminCredentials.email) {
+      throw new Error("Admin user is not logged in or email is not available.");
     }
 
     try {
         const newUserEmail = createEmail(userData.username);
+        // This call might sign out the current admin user
         const userCredential = await createUserWithEmailAndPassword(auth, newUserEmail, userData.password);
         const authUid = userCredential.user.uid;
 
@@ -163,19 +174,18 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
         const userDocRef = doc(firestore, 'users', authUid);
         await setDoc(userDocRef, newUser);
 
-        // After creating the user, Firebase automatically signs in as the new user.
-        // We need to sign back in as the original admin.
-        // A more robust solution would involve admin SDK on a server, but for client-side this is a workaround.
-        await signOut(auth); // Sign out the new user
-        // The AuthProvider will handle re-authenticating the admin via its onAuthStateChanged listener and persisted state.
-        // This relies on the admin's session being persisted.
-
+        // IMPORTANT: The admin is now likely signed out.
+        // We will force a re-login of the admin on the UI side or let the session expire.
+        // For now, we just return the new user. The UI must handle the auth state change.
         return newUser;
-    } catch(error) {
+
+    } catch(error: any) {
         console.error("Failed to add user:", error);
-        // Attempt to sign back in as admin even if there was an error
-        await signOut(auth);
-        return null;
+        // The error might be 'auth/email-already-in-use', which is useful feedback.
+        if (error.code === 'auth/email-already-in-use') {
+          throw new Error(`Username "${userData.username}" sudah digunakan.`);
+        }
+        throw error; // Re-throw other errors
     }
 }
 

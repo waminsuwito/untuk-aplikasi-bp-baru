@@ -77,19 +77,19 @@ export default function ManajemenKaryawanPage() {
         });
         return;
       }
-      const newUser: Omit<User, 'id'> = {
-        username: data.username,
-        password: data.password,
-        jabatan: data.jabatan as Jabatan,
-        location: data.location,
-        nik: data.nik,
-      };
-      
-      const result = await addUser(newUser);
-      if (result) {
+      try {
+        const newUser: Omit<User, 'id'> = {
+          username: data.username,
+          password: data.password,
+          jabatan: data.jabatan as Jabatan,
+          location: data.location,
+          nik: data.nik,
+        };
+        
+        await addUser(newUser);
         toast({ title: 'User Created', description: `User "${data.username}" has been created.` });
-      } else {
-        toast({ variant: 'destructive', title: 'Creation Failed', description: `Could not create user. Please check console for details.`});
+      } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Creation Failed', description: error.message || 'Could not create user.'});
       }
     }
     
