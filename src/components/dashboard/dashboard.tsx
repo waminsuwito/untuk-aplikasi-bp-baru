@@ -14,7 +14,7 @@ import type { MixingProcessConfig, MixerTimerConfig } from '@/lib/config';
 import { useAuth } from '@/context/auth-provider';
 import type { JobMixFormula, ScheduleSheetRow, ProductionHistoryEntry, PrintJobData } from '@/lib/types';
 import { getFormulas } from '@/lib/formula';
-import { auth, database as firebaseDatabase } from '@/lib/firebase';
+import { app, auth, database as firebaseDatabase } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
@@ -94,10 +94,18 @@ export function Dashboard() {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [completedBatchData, setCompletedBatchData] = useState<ProductionHistoryEntry | null>(null);
   const [batchStartTime, setBatchStartTime] = useState<Date | null>(null);
+  const [db, setDb] = useState<Database | null>(null);
 
   const hasActiveSchedule = useMemo(() => {
     return scheduleData.some(row => row.status === 'Proses');
   }, [scheduleData]);
+  
+  useEffect(() => {
+    if (user && !isAuthLoading) {
+      // Initialize database connection only when user is authenticated
+      setDb(getDatabase(app));
+    }
+  }, [user, isAuthLoading]);
 
   const addLog = (message: string, color: string = 'text-foreground') => {
       setActivityLog(prev => {
@@ -113,13 +121,8 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (isAuthLoading) return;
-    if (!user) {
-        // No user logged in, do not attempt to connect to DB.
-        return;
-    }
+    if (!db || !user) return; // Wait for db and user
 
-    const db = getDatabase();
     const weightsRef = ref(db, 'weights');
 
     const listener = onValue(weightsRef, (snapshot) => {
@@ -145,7 +148,7 @@ export function Dashboard() {
     return () => {
         off(weightsRef, 'value', listener);
     };
-  }, [user, isAuthLoading, toast]);
+  }, [db, user, toast]);
 
 
   useEffect(() => {
@@ -268,9 +271,9 @@ export function Dashboard() {
   }, []);
   
   const resetStateForNewJob = () => {
-     setAggregateWeight(0);
-     setAirWeight(0);
-     setSemenWeight(0);
+     if(db) {
+        set(ref(db, 'weights'), { aggregate: 0, air: 0, semen: 0 });
+     }
      setCurrentMixNumber(0);
      setActivityLog([]);
      setShowPrintPreview(false);
