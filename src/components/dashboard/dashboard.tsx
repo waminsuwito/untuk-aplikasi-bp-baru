@@ -113,41 +113,38 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (isAuthLoading || !user) {
-      return;
-    }
-  
-    const db = getDatabase();
-    const weightsRef = ref(db, 'weights');
-  
-    const unsubscribe = onValue(weightsRef, (snapshot) => {
-      if (!snapshot.exists()) {
-        addLog("Inisialisasi data timbangan...", "text-blue-400");
-        // Initialize data only if it doesn't exist.
-        set(weightsRef, { aggregate: 0, air: 0, semen: 0 }).catch(error => {
-          console.error("Firebase weight initialization error:", error);
-          toast({ variant: 'destructive', title: 'Gagal Inisialisasi', description: `Tidak dapat menulis data awal: ${error.message}` });
+    // This effect now ONLY listens for auth changes.
+    // The database connection logic is moved inside the 'if (user)' block.
+    if (!isAuthLoading && user) {
+      const db = getDatabase();
+      const weightsRef = ref(db, 'weights');
+
+      const unsubscribe = onValue(weightsRef, (snapshot) => {
+        if (!snapshot.exists()) {
+          addLog("Inisialisasi data timbangan...", "text-blue-400");
+          set(weightsRef, { aggregate: 0, air: 0, semen: 0 }).catch(error => {
+            console.error("Firebase weight initialization error:", error);
+          });
+        } else {
+          const data = snapshot.val();
+          setAggregateWeight(data.aggregate || 0);
+          setAirWeight(data.air || 0);
+          setSemenWeight(data.semen || 0);
+        }
+      }, (error) => {
+        console.error("Firebase weight listener error:", error);
+        toast({
+          variant: 'destructive',
+          title: 'Koneksi Timbangan Gagal',
+          description: `Tidak dapat memuat data timbangan: ${error.message}`
         });
-      }
-      
-      const data = snapshot.val();
-      if (data) {
-        setAggregateWeight(data.aggregate || 0);
-        setAirWeight(data.air || 0);
-        setSemenWeight(data.semen || 0);
-      }
-    }, (error) => {
-      console.error("Firebase weight listener error:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Koneksi Timbangan Gagal',
-        description: `Tidak dapat memuat data timbangan: ${error.message}`
       });
-    });
-  
-    return () => {
-      unsubscribe();
-    };
+
+      // Cleanup function to detach the listener when the component unmounts or user logs out
+      return () => {
+        unsubscribe();
+      };
+    }
   }, [isAuthLoading, user, toast]);
 
 
@@ -447,13 +444,13 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-       <div className="grid grid-cols-12 gap-4">
+      <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 lg:col-span-9">
           <WeightDisplayPanel
               aggregateWeight={aggregateWeight}
               airWeight={airWeight}
               semenWeight={semenWeight}
-              targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2}
+              targetAggregate={currentTargetWeights.pasir1 + currentTargetWeights.pasir2 + currentTargetWeights.batu1 + currentTargetWeights.batu2 + currentTargetWeights.batu3 + currentTargetWeights.batu4}
               targetAir={currentTargetWeights.air}
               targetSemen={currentTargetWeights.semen}
           />
