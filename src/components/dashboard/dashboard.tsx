@@ -18,7 +18,7 @@ import { app, database as firebaseDatabase } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
-import { AlertTriangle, Ban } from 'lucide-react';
+import { AlertTriangle, Ban, Loader2 } from 'lucide-react';
 
 type AutoProcessStep =
   | 'idle'
@@ -391,6 +391,14 @@ export function Dashboard() {
     }
     setPowerOn(isOn);
   };
+  
+  if (isAuthLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -466,5 +474,3 @@ export function Dashboard() {
     </div>
   );
 }
-
-    
