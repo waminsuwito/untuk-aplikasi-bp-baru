@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getDatabase, ref, onValue, set } from 'firebase/database';
+import { getDatabase, ref, onValue, set, off } from 'firebase/database';
 import { WeightDisplayPanel } from './material-inventory';
 import { ControlPanel } from './control-panel';
 import { StatusPanel, type TimerDisplayState } from './status-panel';
@@ -17,7 +17,7 @@ import { auth, database } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Ban } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
@@ -112,40 +112,37 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    // CRITICAL FIX: Do not attempt any DB connection until auth state is fully resolved and a user is present.
-    if (isAuthLoading || !user) {
-      return;
-    }
-
-    const db = getDatabase();
-    const weightsRef = ref(db, 'weights');
-
-    const unsubscribe = onValue(weightsRef, (snapshot) => {
-      if (!snapshot.exists()) {
-        addLog("Inisialisasi data timbangan...", "text-blue-400");
-        set(weightsRef, { aggregate: 0, air: 0, semen: 0 }).catch(error => {
-          console.error("Firebase weight initialization error:", error);
+    // Only establish connection if a user is logged in and auth is no longer loading.
+    if (user && !isAuthLoading) {
+      const db = getDatabase();
+      const weightsRef = ref(db, 'weights');
+      
+      const unsubscribe = onValue(weightsRef, (snapshot) => {
+        if (!snapshot.exists()) {
+          // If data doesn't exist, initialize it safely.
+          set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
+        } else {
+          const data = snapshot.val();
+          setAggregateWeight(data.aggregate || 0);
+          setAirWeight(data.air || 0);
+          setSemenWeight(data.semen || 0);
+        }
+      }, (error) => {
+        console.error("Firebase weight listener error:", error);
+        toast({
+          variant: 'destructive',
+          title: 'Koneksi Timbangan Gagal',
+          description: `Tidak dapat memuat data timbangan: ${error.message}`
         });
-      } else {
-        const data = snapshot.val();
-        setAggregateWeight(data.aggregate || 0);
-        setAirWeight(data.air || 0);
-        setSemenWeight(data.semen || 0);
-      }
-    }, (error) => {
-      console.error("Firebase weight listener error:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Koneksi Timbangan Gagal',
-        description: `Tidak dapat memuat data timbangan: ${error.message}`
       });
-    });
 
-    // Cleanup function to detach the listener when the component unmounts or user logs out
-    return () => {
-      unsubscribe();
-    };
-  }, [isAuthLoading, user, toast]);
+      // Cleanup function: This is crucial. It detaches the listener
+      // when the component unmounts or when the user logs out.
+      return () => {
+        off(weightsRef, 'value', unsubscribe);
+      };
+    }
+  }, [user, isAuthLoading, toast]); // Dependency on user and isAuthLoading is key.
 
 
   useEffect(() => {
