@@ -90,10 +90,9 @@ export function ControlPanel({
       <Card className="col-span-1">
         <CardContent className="pt-6 space-y-4">
           {!hasActiveSchedule && (
-            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-4 rounded-lg">
-                <Ban className="h-10 w-10 text-destructive mb-2"/>
-                <p className="text-center font-semibold text-destructive">TIDAK ADA JADWAL COR AKTIF</p>
-                <p className="text-center text-xs text-muted-foreground">Silakan minta Admin BP untuk mengaktifkan jadwal.</p>
+            <div className="flex flex-col items-center justify-center p-4 rounded-lg bg-destructive/10 text-destructive mb-2">
+                <Ban className="h-8 w-8 mb-1"/>
+                <p className="text-center font-semibold text-sm">TIDAK ADA JADWAL COR AKTIF</p>
             </div>
           )}
           <div>
@@ -142,9 +141,6 @@ export function ControlPanel({
       {/* Target Volume */}
       <Card className="col-span-1">
         <CardContent className="pt-6 space-y-4">
-          {!hasActiveSchedule && (
-              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 rounded-lg"></div>
-          )}
           <div>
             <Label htmlFor="mutu-beton" className="text-xs text-muted-foreground">MUTU BETON</Label>
             <Select 

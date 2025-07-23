@@ -464,7 +464,7 @@ export function Dashboard() {
         </div>
       </div>
       
-      <div className="relative">
+      <div>
         <ControlPanel
           powerOn={powerOn}
           setPowerOn={handleSetPowerOn}
