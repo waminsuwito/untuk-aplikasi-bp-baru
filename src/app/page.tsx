@@ -13,7 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { seedUsersToFirestore, getUsers, createEmailFromNik } from '@/lib/auth';
 import Image from 'next/image';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, firestore } from '@/lib/firebase';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -40,31 +41,46 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     
     try {
-        // Simplified flow: Assume the input is the NIK and try to log in directly.
-        // This is the most robust way as it doesn't depend on Firestore being perfectly in sync for the login key.
-        const email = createEmailFromNik(nikOrUsername);
+        // Step 1: Try to sign in directly, assuming the input is a NIK.
+        // This is the fastest path and works if the NIK is entered correctly.
+        try {
+            const email = createEmailFromNik(nikOrUsername);
+            await signInWithEmailAndPassword(auth, email, password);
+            // If successful, onAuthStateChanged in AuthProvider will handle the redirect.
+            setIsLoggingIn(false);
+            return;
+        } catch (error) {
+            // This is expected if the user entered a username or a wrong NIK.
+            // We will proceed to the next step.
+            console.log("Direct NIK login failed, trying to find user by username...");
+        }
+
+        // Step 2: If direct NIK login fails, query Firestore to find the user by username.
+        const usersRef = collection(firestore, 'users');
+        const q = query(usersRef, where("username", "==", nikOrUsername.toUpperCase()), limit(1));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            const userDetail = querySnapshot.docs[0].data();
+            if (userDetail.nik) {
+                // Step 3: Try signing in with the NIK found in Firestore.
+                const email = createEmailFromNik(userDetail.nik);
+                await signInWithEmailAndPassword(auth, email, password);
+                // If successful, onAuthStateChanged will handle the rest.
+                setIsLoggingIn(false);
+                return;
+            }
+        }
         
-        await signInWithEmailAndPassword(auth, email, password);
-        
-        // If we reach here, login was successful. The AuthProvider will handle redirection.
-        // We can show a toast based on the input, as we don't know the real username yet.
-        toast({
-            title: 'Login Berhasil',
-            description: `Selamat datang kembali!`,
-        });
+        // If all attempts fail, it's an invalid credential.
+        throw new Error("Invalid credential");
 
     } catch (error: any) {
         console.error("Login process error:", error);
-        let description = 'Terjadi kesalahan saat mencoba login. Periksa koneksi Anda.';
-        // The most common error will be invalid credentials.
-        if (error.code === 'auth/invalid-credential') {
-            description = 'NIK/Username atau password yang Anda masukkan salah.';
-        }
-        
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description,
+            description: 'NIK/Username atau password yang Anda masukkan salah.',
         });
     } finally {
         setIsLoggingIn(false);
