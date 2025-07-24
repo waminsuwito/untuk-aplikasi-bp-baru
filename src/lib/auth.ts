@@ -3,8 +3,9 @@
 
 import { auth, firestore } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, type User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc, query, where, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { User } from './types';
+import { getDefaultRouteForUser } from './auth-guard-helper';
 
 // Helper to create a fake email from NIK/Username
 const createEmail = (identifier: string) => `${identifier.replace(/\s+/g, '_').toLowerCase()}@database.com`;
@@ -72,8 +73,6 @@ export async function updateUser(userId: string, updatedData: Partial<User>): Pr
 
 export async function deleteUser(userId: string): Promise<void> {
   await deleteDoc(doc(firestore, 'users', userId));
-  // Note: This only deletes the Firestore record, not the Firebase Auth user.
-  // Proper user deletion would require a backend function.
 }
 
 export async function changePassword(oldPassword: string, newPassword:string): Promise<{ success: boolean, message: string }> {
@@ -97,44 +96,38 @@ export async function changePassword(oldPassword: string, newPassword:string): P
     }
 }
 
-
-// Definitive login function
 export async function loginWithIdentifier(identifier: string, passwordFromInput: string): Promise<FirebaseUser> {
-    const email = createEmail(identifier);
     const isSuperAdminAttempt = identifier.toUpperCase() === 'SUPERADMIN';
+    const email = createEmail(identifier);
 
     try {
+        // Always try to sign in first.
         const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
         return userCredential.user;
     } catch (error: any) {
+        // If sign-in fails because the user doesn't exist, AND it's the SUPERADMIN...
         if (error.code === 'auth/user-not-found') {
             if (isSuperAdminAttempt) {
-                // If SUPERADMIN auth user doesn't exist, create it. This should only run once.
+                // ...then create the SUPERADMIN user now.
                 try {
                     const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
                     // Also create the Firestore doc for SUPERADMIN.
-                    await setDoc(doc(firestore, 'users', 'superadmin-main'), SUPER_ADMIN_DEFAULTS);
+                    await setDoc(doc(firestore, 'users', 'superadmin-main'), { ...SUPER_ADMIN_DEFAULTS, id: newUserCredential.user.uid });
                     return newUserCredential.user;
                 } catch (createError: any) {
+                    // This might happen if the password is too weak, etc.
                     throw new Error(`Gagal membuat pengguna SUPERADMIN: ${createError.message}`);
                 }
             } else {
-                 // For regular users, we might check firestore to see if the user should exist
-                const q = query(collection(firestore, "users"), where("nik", "==", identifier));
-                const querySnapshot = await getDocs(q);
-                if (querySnapshot.empty) {
-                    throw new Error('Pengguna tidak ditemukan di database.');
-                }
-                // If user exists in Firestore but not auth, something is wrong.
-                // For now, treat as a generic failure.
-                throw new Error('Terjadi masalah dengan akun Anda. Hubungi administrator.');
+                // If it's a regular user that's not found, deny access.
+                throw new Error('Pengguna tidak ditemukan. Silakan hubungi administrator.');
             }
         } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
             throw new Error('Password salah. Silakan coba lagi.');
         } else {
+            // For any other errors (network issues, etc.)
             console.error("Unhandled login error:", error);
-            throw new Error(`Terjadi kesalahan saat login: ${error.code}`);
+            throw new Error(`Terjadi kesalahan saat login: ${error.message}`);
         }
     }
 }
-
