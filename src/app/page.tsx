@@ -39,15 +39,13 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     
     try {
-        // Step 1: Find the user in Firestore by NIK or Username
+        // Step 1: Find user in Firestore by NIK or Username (case-insensitive for username)
         const usersRef = collection(firestore, 'users');
         const nikQuery = query(usersRef, where("nik", "==", nikOrUsername));
-        const usernameQuery = query(usersRef, where("username", "==", nikOrUsername));
+        const usernameQuery = query(usersRef, where("username", "==", nikOrUsername.toUpperCase()));
 
-        const [nikSnapshot, usernameSnapshot] = await Promise.all([
-            getDocs(nikQuery),
-            getDocs(usernameQuery)
-        ]);
+        const nikSnapshot = await getDocs(nikQuery);
+        const usernameSnapshot = await getDocs(usernameQuery);
         
         let userDetail: User | null = null;
         if (!nikSnapshot.empty) {
@@ -57,14 +55,10 @@ export default function LoginPage() {
         }
 
         // Step 2: Validate if user was found
-        if (!userDetail) {
-             throw new Error("Pengguna tidak ditemukan di database.");
+        if (!userDetail || !userDetail.nik) {
+             throw new Error("Pengguna tidak ditemukan atau data NIK tidak valid.");
         }
         
-        if (!userDetail.nik) {
-            throw new Error("Data NIK tidak valid untuk pengguna ini.");
-        }
-
         // Step 3: Use the NIK from the database to create the email and sign in
         const email = createEmailFromNik(userDetail.nik);
         

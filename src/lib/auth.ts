@@ -13,6 +13,7 @@ const initialUsers: Omit<User, 'id'>[] = [
   { username: 'adminbp', password: '123456', jabatan: 'ADMIN BP', location: 'BP PEKANBARU', nik: 'ADMINBP-001' },
   { username: 'mirul', password: '123456', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'OP-001' },
   { username: 'transporter', password: '123456', jabatan: 'TRANSPORTER', location: 'BP PEKANBARU', nik: 'TRN-001' },
+  { username: 'recovery', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'recovery' },
 ];
 
 // Helper to create a valid email from a NIK. NIK is guaranteed to be unique.

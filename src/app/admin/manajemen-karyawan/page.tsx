@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -50,7 +49,7 @@ export default function ManajemenKaryawanPage() {
       (user) => user.nik === data.nik && user.id !== userId
     );
 
-    if (nikExists) {
+    if (nikExists && userToEdit?.nik !== data.nik) {
       toast({
         variant: 'destructive',
         title: 'Gagal Menyimpan',

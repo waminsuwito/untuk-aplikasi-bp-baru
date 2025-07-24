@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect } from 'react';
@@ -111,7 +110,7 @@ export function UserForm({ onSave, onCancel, userToEdit }: UserFormProps) {
               <FormItem>
                 <FormLabel>NIK</FormLabel>
                 <FormControl>
-                  <Input placeholder="contoh 88" {...field} style={{ textTransform: 'uppercase' }} onChange={(e) => field.onChange(e.target.value.toUpperCase())} disabled={isEditing} />
+                  <Input placeholder="contoh 88" {...field} style={{ textTransform: 'uppercase' }} onChange={(e) => field.onChange(e.target.value.toUpperCase())} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
