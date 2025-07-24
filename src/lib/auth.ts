@@ -8,8 +8,8 @@ import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBa
 
 // The initial set of users to seed the application with if none are found.
 const initialUsers: Omit<User, 'id'>[] = [
+  { username: 'superadmin', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'SA001' },
   { username: 'owner', password: '123456', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'OWNER-001' },
-  { username: 'superadmin', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'SUPERADMIN-001' },
   { username: 'adminbp', password: '123456', jabatan: 'ADMIN BP', location: 'BP PEKANBARU', nik: 'ADMINBP-001' },
   { username: 'mirul', password: '123456', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'OP-001' },
   { username: 'transporter', password: '123456', jabatan: 'TRANSPORTER', location: 'BP PEKANBARU', nik: 'TRN-001' },

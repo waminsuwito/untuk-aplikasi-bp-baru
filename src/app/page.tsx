@@ -52,7 +52,7 @@ export default function LoginPage() {
              toast({
                 variant: 'destructive',
                 title: 'Login Gagal',
-                description: 'Pengguna tidak ditemukan di database. Pastikan NIK atau Username benar.',
+                description: 'Pengguna tidak ditemukan di database. Pastikan NIK atau Username benar dan sudah melakukan inisialisasi.',
             });
             setIsLoggingIn(false);
             return;
