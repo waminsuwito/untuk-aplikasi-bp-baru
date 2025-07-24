@@ -37,8 +37,7 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     
     try {
-        // The most direct approach: Assume the input is a NIK and try to log in.
-        // This avoids all database lookups and potential data mismatches.
+        // Simple, direct login flow. Assume the input is the NIK.
         const email = createEmailFromNik(nikOrUsername);
         
         await signInWithEmailAndPassword(auth, email, password);
@@ -54,7 +53,7 @@ export default function LoginPage() {
         console.error("Login process error:", error);
         
         let errorMessage = 'NIK atau password yang Anda masukkan salah.';
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
              errorMessage = 'Kredensial tidak valid. Pastikan NIK dan password benar.';
         }
         
