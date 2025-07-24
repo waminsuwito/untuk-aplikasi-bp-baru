@@ -163,21 +163,17 @@ export default function ManajemenAlatPage() {
       return { totalAlat: [], alatBaik: [], perluPerhatian: [], alatRusak: [], alatRusakBerat: [], belumChecklist: [], alatBaikNoOperator: [] };
     }
     
-    const todaysChecklistNiks = new Set(
+    const todaysChecklistUserNiks = new Set(
         checklistReports
             .filter(r => format(new Date(r.timestamp), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd'))
             .map(report => report.userNik)
     );
 
-    const operators = allUsers.filter(u => 
-        (u.jabatan?.includes('SOPIR') || u.jabatan?.includes('OPRATOR')) && 
-        u.location === user.location
+    const alatBelumChecklist = processedVehicles.filter(v => 
+        v.status !== 'RUSAK BERAT' && 
+        v.operator && // Must have an operator
+        !todaysChecklistUserNiks.has(v.operator.nik) // Operator has not submitted a checklist today
     );
-    
-    const operatorsBelumChecklist = operators.filter(op => {
-      const associatedVehicle = processedVehicles.find(v => v.operator?.nik === op.nik);
-      return associatedVehicle?.status !== 'RUSAK BERAT' && !todaysChecklistNiks.has(op.nik || '');
-    });
 
     const alatBaik = processedVehicles.filter(v => v.status === 'BAIK');
     const perluPerhatian = processedVehicles.filter(v => v.status === 'PERLU PERHATIAN');
@@ -191,10 +187,10 @@ export default function ManajemenAlatPage() {
       perluPerhatian,
       alatRusak,
       alatRusakBerat,
-      belumChecklist: operatorsBelumChecklist,
+      belumChecklist: alatBelumChecklist,
       alatBaikNoOperator,
     };
-  }, [user, processedVehicles, checklistReports, allUsers]);
+  }, [user, processedVehicles, checklistReports]);
   
   const getBadgeVariant = (status: string) => {
     switch (status) {
@@ -288,7 +284,7 @@ export default function ManajemenAlatPage() {
         <StatCard title="Alat Baik, Belum Ada Oprator/Driver" value={filteredData.alatBaikNoOperator.length} description="Klik untuk melihat daftar" icon={UserX} colorClass="text-blue-600" clickable onClick={() => handleShowDialog('Alat Baik, Belum Ada Operator', filteredData.alatBaikNoOperator)} />
         <StatCard title="Perlu Perhatian" value={filteredData.perluPerhatian.length} description="Klik untuk melihat daftar" icon={AlertTriangle} colorClass="text-amber-500" clickable onClick={() => handleShowDialog('Daftar Alat Perlu Perhatian', filteredData.perluPerhatian)} />
         <StatCard title="Alat Rusak" value={filteredData.alatRusak.length} description="Klik untuk melihat daftar" icon={Wrench} colorClass="text-destructive" clickable onClick={() => handleShowDialog('Daftar Alat Rusak', filteredData.alatRusak)} />
-        <StatCard title="Belum Checklist" value={filteredData.belumChecklist.length} description="Klik untuk melihat daftar" icon={FileWarning} colorClass="text-sky-600" clickable onClick={() => handleShowDialog('Operator Belum Checklist', [], filteredData.belumChecklist as User[])} />
+        <StatCard title="Belum Checklist" value={filteredData.belumChecklist.length} description="Klik untuk melihat daftar" icon={FileWarning} colorClass="text-sky-600" clickable onClick={() => handleShowDialog('Alat Belum Checklist', filteredData.belumChecklist)} />
         <StatCard 
             title="Alat Rusak Berat" 
             value={filteredData.alatRusakBerat.length} 
