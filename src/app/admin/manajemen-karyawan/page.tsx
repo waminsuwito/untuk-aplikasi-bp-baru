@@ -6,12 +6,41 @@ import { Shield } from 'lucide-react';
 import { UserForm, type UserFormValues } from '@/components/admin/user-form';
 import { UserList } from '@/components/admin/user-list';
 import { type User, type Jabatan } from '@/lib/types';
-import { getUsers, addUser, updateUser, deleteUser } from '@/lib/auth';
+import { addUser, updateUser, deleteUser } from '@/lib/auth';
+import { firestore } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useState, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-provider';
+
+
+const SUPER_ADMIN_DEFAULTS = {
+  id: 'superadmin-main',
+  username: 'SUPERADMIN',
+  nik: 'SUPERADMIN',
+  jabatan: 'SUPER ADMIN' as const,
+  location: 'BP PEKANBARU' as const,
+};
+
+async function getUsersFromFirestore(): Promise<User[]> {
+  try {
+    const usersCollection = collection(firestore, 'users');
+    const userSnapshot = await getDocs(usersCollection);
+    const userList = userSnapshot.docs.map(doc => doc.data() as User);
+    
+    const superAdminExists = userList.some(u => u.id === SUPER_ADMIN_DEFAULTS.id);
+    if (!superAdminExists) {
+      userList.push(SUPER_ADMIN_DEFAULTS);
+    }
+    
+    return userList;
+  } catch (error) {
+    console.error("Error getting users:", error);
+    return [];
+  }
+}
 
 
 export default function ManajemenKaryawanPage() {
@@ -24,7 +53,7 @@ export default function ManajemenKaryawanPage() {
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const userList = await getUsers();
+      const userList = await getUsersFromFirestore();
       setUsers(userList || []);
     } catch (error) {
       console.error("Failed to load users:", error);
@@ -42,7 +71,7 @@ export default function ManajemenKaryawanPage() {
   }, [isAuthLoading, fetchUsers]);
 
   const handleSaveUser = async (data: UserFormValues, userId: string | null) => {
-    const currentUsers = await getUsers();
+    const currentUsers = await getUsersFromFirestore();
     
     const nikExists = currentUsers.some(
       (user) => user.nik === data.nik && user.id !== userId
@@ -65,7 +94,6 @@ export default function ManajemenKaryawanPage() {
         nik: data.nik,
       };
       
-      // Handle password change for existing users
       if (data.password) {
          if (data.password.length < 6) {
           toast({
@@ -73,26 +101,20 @@ export default function ManajemenKaryawanPage() {
             title: 'Password Terlalu Pendek',
             description: 'Password baru harus memiliki setidaknya 6 karakter.',
           });
-          return; // Stop execution
+          return;
         }
-        // NOTE: In a real app, you would have a separate, more secure flow for password changes.
-        // This implementation does not re-authenticate the admin before changing another user's password.
-        console.warn(`Password for user ${userId} will be changed. This is not recommended without re-authentication.`);
-        // The password will be passed along to be updated.
         userDataToUpdate.password = data.password;
       }
       
-      // In a real app, you would call a secure cloud function to update the user's password.
-      // For this project, we'll assume a direct update is allowed, though not ideal.
       await updateUser(userId, userDataToUpdate);
       toast({ title: 'User Updated', description: `User "${data.username}" has been updated.` });
 
-    } else { // Creating a new user
-       if (!data.password) {
+    } else {
+       if (!data.password || data.password.length < 6) {
         toast({
           variant: 'destructive',
           title: 'Creation Failed',
-          description: 'Password is required for new users.',
+          description: 'Password is required and must be at least 6 characters long.',
         });
         return;
       }

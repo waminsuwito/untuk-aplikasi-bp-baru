@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -7,13 +6,42 @@ import { Shield } from 'lucide-react';
 import { UserForm, type UserFormValues } from '@/components/admin/user-form';
 import { UserList } from '@/components/admin/user-list';
 import { type User, type Jabatan } from '@/lib/types';
-import { getUsers, addUser, updateUser, deleteUser } from '@/lib/auth';
+import { addUser, updateUser, deleteUser } from '@/lib/auth';
+import { firestore } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useState, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-provider';
 
+
+const SUPER_ADMIN_DEFAULTS = {
+  id: 'superadmin-main',
+  username: 'SUPERADMIN',
+  nik: 'SUPERADMIN',
+  jabatan: 'SUPER ADMIN' as const,
+  location: 'BP PEKANBARU' as const,
+};
+
+
+async function getUsersFromFirestore(): Promise<User[]> {
+  try {
+    const usersCollection = collection(firestore, 'users');
+    const userSnapshot = await getDocs(usersCollection);
+    const userList = userSnapshot.docs.map(doc => doc.data() as User);
+    
+    const superAdminExists = userList.some(u => u.id === SUPER_ADMIN_DEFAULTS.id);
+    if (!superAdminExists) {
+      userList.push(SUPER_ADMIN_DEFAULTS);
+    }
+    
+    return userList;
+  } catch (error) {
+    console.error("Error getting users:", error);
+    return [];
+  }
+}
 
 export default function SuperAdminPage() {
   const { isLoading: isAuthLoading } = useAuth();
@@ -25,7 +53,7 @@ export default function SuperAdminPage() {
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const userList = await getUsers();
+      const userList = await getUsersFromFirestore();
       setUsers(userList || []);
     } catch (error) {
       console.error("Failed to load users:", error);
@@ -43,7 +71,7 @@ export default function SuperAdminPage() {
   }, [isAuthLoading, fetchUsers]);
 
   const handleSaveUser = async (data: UserFormValues, userId: string | null) => {
-    const currentUsers = await getUsers();
+    const currentUsers = await getUsersFromFirestore();
     
     const nikExists = currentUsers.some(
       (user) => user.nik === data.nik && user.id !== userId
@@ -75,8 +103,6 @@ export default function SuperAdminPage() {
           });
           return;
         }
-        // This is not secure for a production app. It allows an admin to change a password without knowing the old one.
-        // For this app's purpose, we allow it.
         userDataToUpdate.password = data.password; 
         console.warn(`Admin is changing password for user ${userId}.`);
       }
@@ -101,10 +127,10 @@ export default function SuperAdminPage() {
         nik: data.nik,
       };
       const result = await addUser(newUser);
-      if (result) {
+      if (result.success) {
         toast({ title: 'User Created', description: `User "${data.username}" has been created.` });
       } else {
-        toast({ variant: 'destructive', title: 'Creation Failed', description: `Could not create user. The NIK might already exist in Firebase Auth.`});
+        toast({ variant: 'destructive', title: 'Creation Failed', description: result.message || `Could not create user.`});
       }
     }
     

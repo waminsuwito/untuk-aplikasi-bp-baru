@@ -38,28 +38,6 @@ export async function addUser(userData: Omit<User, 'id'>): Promise<{ success: bo
   }
 }
 
-export async function getUsers(): Promise<User[]> {
-  try {
-    const usersCollection = collection(firestore, 'users');
-    const userSnapshot = await getDocs(usersCollection);
-    const userList = userSnapshot.docs.map(doc => doc.data() as User);
-    
-    // Check if superadmin exists in the list
-    const superAdminExists = userList.some(u => u.id === SUPER_ADMIN_DEFAULTS.id);
-    if (!superAdminExists) {
-      // Ensure the Firestore document for superadmin exists
-      await setDoc(doc(firestore, 'users', SUPER_ADMIN_DEFAULTS.id), SUPER_ADMIN_DEFAULTS);
-      userList.push(SUPER_ADMIN_DEFAULTS);
-    }
-    
-    return userList;
-  } catch (error) {
-    console.error("Error getting users:", error);
-    return [];
-  }
-}
-
-
 export async function updateUser(userId: string, updatedData: Partial<User>): Promise<void> {
   const userRef = doc(firestore, 'users', userId);
   await updateDoc(userRef, updatedData);
@@ -93,66 +71,30 @@ export async function changePassword(oldPassword: string, newPassword: string): 
 
 // Function to handle login with either NIK or username
 export async function loginWithIdentifier(identifier: string, passwordFromInput: string): Promise<FirebaseUser> {
-    const isSuperAdminLogin = identifier.toUpperCase() === 'SUPERADMIN';
+    const email = createEmail(identifier);
 
-    if (isSuperAdminLogin) {
-        const email = createEmail(identifier);
-        try {
-            // Always try to sign in first.
-            const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
-            return userCredential.user;
-        } catch (error: any) {
-            // If user does not exist in Auth, create them.
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                 console.log("SUPERADMIN auth user not found, attempting to create...");
-                try {
-                    const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
-                    // Also ensure the Firestore doc exists.
-                    await setDoc(doc(firestore, 'users', 'superadmin-main'), SUPER_ADMIN_DEFAULTS);
-                     console.log("SUPERADMIN user created successfully.");
-                    return newUserCredential.user;
-                } catch (createError: any) {
-                     console.error("Failed to create SUPERADMIN user during login flow:", createError);
-                     if (createError.code === 'auth/email-already-in-use') {
-                         throw new Error('Password SUPERADMIN salah. Coba lagi.');
-                     }
-                     throw new Error(`Gagal membuat pengguna SUPERADMIN: ${createError.message}`);
-                }
-            }
-            // For other errors like wrong password on an existing account.
-            else {
-                 console.error("SUPERADMIN login error:", error);
-                 throw new Error('Password SUPERADMIN salah.');
-            }
-        }
-    }
-
-    // Standard user login flow
-    const usersCollection = collection(firestore, 'users');
-    
-    const nikQuery = query(usersCollection, where("nik", "==", identifier.toUpperCase()));
-    const usernameQuery = query(usersCollection, where("username", "==", identifier.toUpperCase()));
-
-    const nikSnapshot = await getDocs(nikQuery);
-    const usernameSnapshot = await getDocs(usernameQuery);
-
-    let userProfile: User | null = null;
-    if (!nikSnapshot.empty) {
-        userProfile = nikSnapshot.docs[0].data() as User;
-    } else if (!usernameSnapshot.empty) {
-        userProfile = usernameSnapshot.docs[0].data() as User;
-    }
-
-    if (!userProfile) {
-        throw new Error('User dengan NIK atau Username tersebut tidak ditemukan.');
-    }
-    
-    const authEmail = createEmail(userProfile.nik || userProfile.username);
     try {
-        const userCredential = await signInWithEmailAndPassword(auth, authEmail, passwordFromInput);
+        const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
         return userCredential.user;
-    } catch (error) {
-        console.error("Firebase sign-in error:", error);
-        throw new Error('Password salah.');
+    } catch (error: any) {
+        if (error.code === 'auth/user-not-found' && identifier.toUpperCase() === 'SUPERADMIN') {
+            // If SUPERADMIN does not exist in Auth, create it.
+            console.log("SUPERADMIN auth user not found, attempting to create...");
+            try {
+                const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
+                // Also ensure the Firestore doc for SUPERADMIN exists.
+                await setDoc(doc(firestore, 'users', 'superadmin-main'), SUPER_ADMIN_DEFAULTS);
+                console.log("SUPERADMIN user created successfully.");
+                return newUserCredential.user;
+            } catch (createError: any) {
+                console.error("Failed to create SUPERADMIN user:", createError);
+                throw new Error(`Gagal membuat pengguna SUPERADMIN: ${createError.message}`);
+            }
+        } else if (error.code === 'auth/invalid-credential') {
+            throw new Error('Kombinasi Username dan Password salah.');
+        } else {
+            console.error("Login error:", error);
+            throw new Error('Terjadi kesalahan saat login.');
+        }
     }
 }
