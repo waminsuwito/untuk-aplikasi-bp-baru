@@ -127,15 +127,33 @@ export async function changePassword(oldPassword: string, newPassword: string): 
 
 // Function to handle login with either NIK or username
 export async function loginWithIdentifier(identifier: string, passwordFromInput: string): Promise<FirebaseUser> {
+    if (identifier.toUpperCase() === 'SUPERADMIN' && passwordFromInput === SUPER_ADMIN_PASSWORD) {
+        const email = createEmail(SUPER_ADMIN_DEFAULTS.nik);
+        try {
+            const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
+            return userCredential.user;
+        } catch (error: any) {
+            if (error.code === 'auth/user-not-found') {
+                console.log("Super admin auth user not found, attempting to create...");
+                const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
+                // We don't need to set the doc, because getUsers will do that.
+                // This is just to ensure the auth user exists.
+                return newUserCredential.user;
+            }
+            throw new Error('Password salah untuk SUPERADMIN.');
+        }
+    }
+
+
     const allUsers = await getUsers();
     const normalizedIdentifier = identifier.toLowerCase();
     
     const userProfile = allUsers.find(
-      u => u.nik?.toLowerCase() === normalizedIdentifier || u.username.toLowerCase() === normalizedIdentifier
+      u => (u.nik && u.nik.toLowerCase() === normalizedIdentifier) || u.username.toLowerCase() === normalizedIdentifier
     );
 
     if (!userProfile) {
-        throw new Error('User with that NIK or Username not found.');
+        throw new Error('User dengan NIK atau Username tersebut tidak ditemukan.');
     }
     
     // Now we have the NIK/username, construct the email and try to sign in
