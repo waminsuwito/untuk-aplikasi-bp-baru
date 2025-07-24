@@ -1,14 +1,15 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { auth, firestore } from '@/lib/firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { type User } from '@/lib/types';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
-import { getUsers } from '@/lib/auth';
+import { loginWithIdentifier } from '@/lib/auth';
 
 interface AuthContextType {
   user: Omit<User, 'password'> | null;
@@ -19,9 +20,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper to create a fake email from NIK/Username
-const createEmail = (identifier: string) => `${identifier.replace(/\s+/g, '_')}@database.com`;
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Omit<User, 'password'> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setIsLoading(true);
       if (firebaseUser) {
         const userDocRef = doc(firestore, 'users', firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
@@ -39,14 +38,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(userToSet);
 
           const defaultRoute = getDefaultRouteForUser(userData);
-          if (pathname === '/' || !pathname.startsWith(defaultRoute.split('/')[1])) {
+          // Redirect if on login page or not on an authorized page
+          if (pathname === '/' || !pathname.startsWith('/' + defaultRoute.split('/')[1])) {
               router.replace(defaultRoute);
           }
-
+          
         } else {
           // User exists in Auth but not in Firestore, log them out
           await signOut(auth);
           setUser(null);
+           if (pathname !== '/') {
+             router.replace('/');
+           }
         }
       } else {
         setUser(null);
@@ -62,12 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (identifier: string, passwordFromInput: string): Promise<void> => {
     try {
-        const email = createEmail(identifier);
-        await signInWithEmailAndPassword(auth, email, passwordFromInput);
-        // The onAuthStateChanged listener will handle the rest
+        await loginWithIdentifier(identifier, passwordFromInput);
+        // The onAuthStateChanged listener will handle the rest (setting user and redirecting)
     } catch (error: any) {
-        console.error("Login error:", error);
-        throw new Error('Kombinasi NIK/Username dan Password salah.');
+        console.error("Login error in provider:", error);
+        throw error; // Re-throw the error to be caught by the login page
     }
   }, []);
   
