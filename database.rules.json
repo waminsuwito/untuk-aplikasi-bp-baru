@@ -1,6 +1,90 @@
 
 {
   "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && (request.auth.uid == $uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.jabatan == 'SUPER ADMIN')"
+      },
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "locations": {
+      "$location": {
+        "vehicles": {
+          "$vehicleId": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        },
+        "assignments": {
+          "$assignmentId": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        },
+        "attendance": {
+          "$attendanceId": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        }
+      }
+    },
+    "attendance-records": {
+      "$recordId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "unloading-activities": {
+      "$activityId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "daily-activity-reports": {
+      "$reportId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "loader-checklists": {
+      "$checklistId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "tm-checklists": {
+      "$checklistId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "work-orders": {
+      "$woId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "job-mix-formulas": {
+      "$formulaId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "schedule-sheet": {
+      "$scheduleId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "stock-records": {
+      "$stockId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
     "weights": {
       ".read": "auth != null",
       ".write": "auth != null"
