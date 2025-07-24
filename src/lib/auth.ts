@@ -32,12 +32,9 @@ export function getUsers(): User[] {
 
 export function seedUsersToLocalStorage() {
   try {
-    // Only seed if there are no users, to avoid overwriting existing data
-    const existingUsers = localStorage.getItem(USERS_STORAGE_KEY);
-    if (!existingUsers || JSON.parse(existingUsers).length === 0) {
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialUsers));
-      console.log("Initial users seeded to localStorage.");
-    }
+    // This function now ALWAYS overwrites the existing data to ensure a clean slate.
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialUsers));
+    console.log("Initial users seeded to localStorage.");
   } catch (error) {
     console.error("Failed to seed users to localStorage", error);
   }

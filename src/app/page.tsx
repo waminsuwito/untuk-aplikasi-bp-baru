@@ -37,8 +37,10 @@ export default function LoginPage() {
     await new Promise(resolve => setTimeout(resolve, 300));
 
     const users = getUsers();
+    const upperCaseInput = nikOrUsername.toUpperCase();
+    
     const userToLogin = users.find(
-        u => (u.nik?.toUpperCase() === nikOrUsername.toUpperCase() || u.username.toUpperCase() === nikOrUsername.toUpperCase())
+        u => (u.username.toUpperCase() === upperCaseInput || (u.nik && u.nik.toUpperCase() === upperCaseInput))
     );
 
     if (userToLogin && userToLogin.password === password) {
