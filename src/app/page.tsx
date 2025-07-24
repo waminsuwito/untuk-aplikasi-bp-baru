@@ -1,18 +1,17 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-provider';
-import { Loader2, LogIn, Database } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
-import type { User } from '@/lib/types';
-import { getUsers, seedUsersToLocalStorage } from '@/lib/auth';
+import { getUsers } from '@/lib/auth';
 
 export default function LoginPage() {
   const { user, login, isLoading: isAuthLoading } = useAuth();
@@ -21,6 +20,11 @@ export default function LoginPage() {
   const [nikOrUsername, setNikOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  
+  // Ensure users are loaded on the client side at least once.
+  useEffect(() => {
+    getUsers();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,14 +64,6 @@ export default function LoginPage() {
 
     setIsLoggingIn(false);
   };
-  
-  const handleSeed = () => {
-    seedUsersToLocalStorage();
-    toast({
-        title: 'Database Diinisialisasi',
-        description: 'Data pengguna awal telah dimuat. Silakan coba login.'
-    });
-  }
 
   if (isAuthLoading || user) {
      return (
@@ -122,10 +118,6 @@ export default function LoginPage() {
                 <LogIn className="mr-2 h-4 w-4" />
                 )}
                 Login
-            </Button>
-            <Button type="button" variant="link" className="text-xs text-muted-foreground" onClick={handleSeed}>
-                <Database className="mr-2 h-3 w-3" />
-                (Jika login gagal, klik di sini untuk inisialisasi database)
             </Button>
             </CardFooter>
         </form>
