@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { type User, type Jabatan, userLocations, jabatanOptions } from '@/lib/types';
@@ -9,9 +8,9 @@ import { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBa
 
 // The initial set of users to seed the application with if none are found.
 const initialUsers: Omit<User, 'id'>[] = [
-  { username: 'admin', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'admin' },
-  { username: 'owner', password: '123456', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'OWN001' },
+  { username: 'superadmin', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'SA001' },
   { username: 'adminbp', password: '123456', jabatan: 'ADMIN BP', location: 'BP PEKANBARU', nik: 'ADMINBP-001' },
+  { username: 'owner', password: '123456', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'OWN001' },
   { username: 'mirul', password: '123456', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'OP-001' },
   { username: 'transporter', password: '123456', jabatan: 'TRANSPORTER', location: 'BP PEKANBARU', nik: 'TRN-001' },
   { username: 'recovery', password: '123456', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'recovery' },
@@ -34,14 +33,16 @@ export async function seedUsersToFirestore() {
   
   try {
     const existingUsersSnapshot = await getDocs(usersRef);
-    const deleteBatch = writeBatch(firestore);
-    existingUsersSnapshot.forEach(doc => {
-      // Note: This does not delete the user from Firebase Auth, only Firestore.
-      // Proper multi-user deletion requires Admin SDK on a backend.
-      deleteBatch.delete(doc.ref);
-    });
-    await deleteBatch.commit();
-    console.log("Pengguna lama di Firestore telah dihapus.");
+    if (!existingUsersSnapshot.empty) {
+        const deleteBatch = writeBatch(firestore);
+        existingUsersSnapshot.forEach(doc => {
+        // Note: This does not delete the user from Firebase Auth, only Firestore.
+        // Proper multi-user deletion requires Admin SDK on a backend.
+        deleteBatch.delete(doc.ref);
+        });
+        await deleteBatch.commit();
+        console.log("Pengguna lama di Firestore telah dihapus.");
+    }
   } catch(e) {
     console.error("Gagal menghapus pengguna lama:", e);
     return { success: false, message: "Gagal membersihkan database pengguna lama." };
@@ -64,9 +65,18 @@ export async function seedUsersToFirestore() {
       } catch (authError: any) {
         if (authError.code === 'auth/email-already-in-use') {
           console.warn(`Pengguna Auth untuk ${user.username} sudah ada. Melanjutkan proses simpan ke Firestore.`);
-           // We can't get the UID of the existing user on the client, so we will skip creating a Firestore doc if auth user exists
-           // This is a limitation of client-side seeding.
-          continue;
+           // To get the UID of the existing user, we need to sign them in. This is a client-side limitation.
+           // For simplicity in seeding, we will just proceed. A proper admin panel would handle this better.
+           // We will try to get the user and use their UID if they exist.
+           try {
+              // This is a workaround, not a guarantee
+              const tempUserCredential = await signInWithEmailAndPassword(auth, email, user.password || '123456');
+              authUid = tempUserCredential.user.uid;
+              await signOut(auth); // Sign out immediately after getting UID
+           } catch(signInError) {
+              console.error("Could not retrieve existing user UID during seeding.", signInError);
+              continue; // Skip this user if we can't get a UID
+           }
         } else {
           throw authError; // Rethrow other auth errors
         }
@@ -78,6 +88,9 @@ export async function seedUsersToFirestore() {
         await setDoc(userDocRef, { ...userDataForFirestore, id: authUid });
         console.log(`Pengguna ${user.username} berhasil ditambahkan.`);
         successCount++;
+      } else {
+        failCount++;
+        console.error(`Tidak dapat memperoleh UID untuk pengguna ${user.username}. Gagal menyimpan ke Firestore.`);
       }
     } catch (error: any) {
       failCount++;
@@ -124,22 +137,14 @@ export async function addUser(userData: Omit<User, 'id'> & { password?: string }
 
     try {
         const tempId = doc(collection(firestore, 'id_placeholder')).id;
-        const newUser: User = {
-            id: tempId, // Temporary ID
-            username: userData.username,
-            password: userData.password, // Store password temporarily
-            jabatan: userData.jabatan,
-            location: userData.location,
-            nik: userData.nik,
-        };
         
         // Save the user data to Firestore with a temporary ID.
         // A backend function/trigger would ideally handle the Auth creation.
         // Since we are client-only, the user must login once to create their auth account.
         const userDocRef = doc(firestore, 'users', tempId);
-        await setDoc(userDocRef, newUser);
+        await setDoc(userDocRef, { ...userData, id: tempId });
         
-        return newUser;
+        return { ...userData, id: tempId };
 
     } catch(error: any) {
         console.error("Gagal menambahkan pengguna ke Firestore:", error);
@@ -206,7 +211,8 @@ export async function getCurrentUserDetails(uid: string): Promise<Omit<User, 'pa
     if (docSnap.exists()) {
         const data = docSnap.data();
         // Ensure the returned object has the correct ID matching the auth UID
-        return { ...data, id: docSnap.id } as Omit<User, 'password'>;
+        const { password, ...userDataToReturn } = data;
+        return { ...userDataToReturn, id: docSnap.id };
     } else {
         console.warn(`No Firestore document found for UID: ${uid}`);
         return null;
