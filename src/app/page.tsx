@@ -10,11 +10,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, createEmailFromNik, getCurrentUserDetails } from '@/lib/auth';
+import { seedUsersToFirestore, createEmailFromNik, findUserByNikOrUsername } from '@/lib/auth';
 import Image from 'next/image';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, firestore } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import type { User } from '@/lib/types';
 
 export default function LoginPage() {
@@ -39,37 +38,23 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     
     try {
-        let emailToAuth: string;
-        let finalNik: string;
+        // Step 1: Find the user in Firestore first to get their official NIK.
+        const userDetail = await findUserByNikOrUsername(nikOrUsername.trim());
 
-        // Cek apakah input adalah NIK atau username. Jika username, cari NIK-nya dulu.
-        const usersRef = collection(firestore, "users");
-        const qUsername = query(usersRef, where("username", "==", nikOrUsername.trim()));
-        const usernameSnapshot = await getDocs(qUsername);
-
-        if (!usernameSnapshot.empty) {
-            // Jika input adalah username, gunakan NIK yang terkait untuk otentikasi
-            const userDetail = usernameSnapshot.docs[0].data() as User;
-            if (!userDetail.nik) throw new Error(`Pengguna ${nikOrUsername} tidak memiliki NIK yang valid.`);
-            finalNik = userDetail.nik;
-            emailToAuth = createEmailFromNik(userDetail.nik);
-        } else {
-            // Jika bukan username, asumsikan input adalah NIK
-            finalNik = nikOrUsername.trim();
-            emailToAuth = createEmailFromNik(finalNik);
+        // Step 2: Validate if user was found
+        if (!userDetail || !userDetail.nik) {
+             throw new Error("Pengguna tidak ditemukan atau data NIK tidak valid.");
         }
         
-        // Tahap 1: Coba login dengan kredensial yang ada
+        // Step 3: Use the NIK from the database to create the email and sign in
+        const emailToAuth = createEmailFromNik(userDetail.nik);
         const userCredential = await signInWithEmailAndPassword(auth, emailToAuth, password);
 
-        // Tahap 2: Ambil detail pengguna setelah berhasil login
-        const userDetails = await getCurrentUserDetails(userCredential.user.uid);
-
+        // After successful sign-in, the AuthProvider will handle redirection.
         toast({
             title: 'Login Berhasil',
-            description: `Selamat datang kembali, ${userDetails?.username || 'Pengguna'}. Mengarahkan ke dashboard...`,
+            description: `Selamat datang kembali, ${userDetail.username}.`,
         });
-        // Redirect akan ditangani oleh AuthProvider
 
     } catch (error: any) {
         console.error("Login process error:", error);
@@ -77,10 +62,8 @@ export default function LoginPage() {
         let errorMessage = 'Terjadi kesalahan saat login.';
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
              errorMessage = 'Kombinasi NIK/Username dan Password salah.';
-        } else if (error.code === 'auth/user-not-found') {
-            errorMessage = 'Pengguna dengan NIK/Username tersebut tidak ditemukan di sistem otentikasi.';
-        } else if (error.message) {
-            errorMessage = error.message;
+        } else if (error.message.includes("Pengguna tidak ditemukan")) {
+            errorMessage = "Pengguna tidak ditemukan di database.";
         }
         
         toast({

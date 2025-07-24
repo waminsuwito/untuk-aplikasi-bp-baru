@@ -26,9 +26,6 @@ export const createEmailFromNik = (nik: string) => `${nik.replace(/\s+/g, '_').t
 export async function seedUsersToFirestore() {
   const usersRef = collection(firestore, 'users');
   
-  // This function will now act as a RESET function.
-  // It will delete all existing users and then add the initial users.
-  // This is a destructive operation.
   console.log("Memulai proses inisialisasi ulang database...");
   
   try {
@@ -65,20 +62,16 @@ export async function seedUsersToFirestore() {
       } catch (authError: any) {
         if (authError.code === 'auth/email-already-in-use') {
           console.warn(`Pengguna Auth untuk ${user.username} sudah ada. Melanjutkan proses simpan ke Firestore.`);
-           // To get the UID of the existing user, we need to sign them in. This is a client-side limitation.
-           // For simplicity in seeding, we will just proceed. A proper admin panel would handle this better.
-           // We will try to get the user and use their UID if they exist.
            try {
-              // This is a workaround, not a guarantee
               const tempUserCredential = await signInWithEmailAndPassword(auth, email, user.password || '123456');
               authUid = tempUserCredential.user.uid;
-              await signOut(auth); // Sign out immediately after getting UID
+              await signOut(auth);
            } catch(signInError) {
               console.error("Could not retrieve existing user UID during seeding.", signInError);
-              continue; // Skip this user if we can't get a UID
+              continue; 
            }
         } else {
-          throw authError; // Rethrow other auth errors
+          throw authError; 
         }
       }
       
@@ -122,6 +115,25 @@ export async function getUsers(): Promise<User[]> {
     }
 }
 
+export async function findUserByNikOrUsername(identifier: string): Promise<User | null> {
+    const usersRef = collection(firestore, 'users');
+    // First, try to find by NIK
+    const nikQuery = query(usersRef, where("nik", "==", identifier), limit(1));
+    const nikSnapshot = await getDocs(nikQuery);
+    if (!nikSnapshot.empty) {
+        return nikSnapshot.docs[0].data() as User;
+    }
+
+    // If not found by NIK, try by username
+    const usernameQuery = query(usersRef, where("username", "==", identifier), limit(1));
+    const usernameSnapshot = await getDocs(usernameQuery);
+    if (!usernameSnapshot.empty) {
+        return usernameSnapshot.docs[0].data() as User;
+    }
+    
+    return null;
+}
+
 export async function addUser(userData: Omit<User, 'id'> & { password?: string }): Promise<User | null> {
     if (!userData.password) {
         throw new Error("Password wajib diisi untuk pengguna baru.");
@@ -136,19 +148,25 @@ export async function addUser(userData: Omit<User, 'id'> & { password?: string }
     }
 
     try {
-        const tempId = doc(collection(firestore, 'id_placeholder')).id;
-        
-        // Save the user data to Firestore with a temporary ID.
-        // A backend function/trigger would ideally handle the Auth creation.
-        // Since we are client-only, the user must login once to create their auth account.
-        const userDocRef = doc(firestore, 'users', tempId);
-        await setDoc(userDocRef, { ...userData, id: tempId });
-        
-        return { ...userData, id: tempId };
-
+      const email = createEmailFromNik(userData.nik || '');
+      const userCredential = await createUserWithEmailAndPassword(auth, email, userData.password);
+      const authUid = userCredential.user.uid;
+      
+      const userDocRef = doc(firestore, 'users', authUid);
+      const { password, ...userDataForFirestore } = userData;
+      await setDoc(userDocRef, { ...userDataForFirestore, id: authUid });
+      
+      // Sign out the admin user after creating a new user, to prevent session interference.
+      // This is a workaround for client-side user creation.
+      await signOut(auth);
+      
+      return { ...userData, id: authUid };
     } catch(error: any) {
-        console.error("Gagal menambahkan pengguna ke Firestore:", error);
-        throw new Error("Gagal menyimpan pengguna baru ke database.");
+        console.error("Gagal menambahkan pengguna:", error);
+        if (error.code === 'auth/email-already-in-use') {
+            throw new Error(`NIK "${userData.nik}" sudah terdaftar di sistem otentikasi.`);
+        }
+        throw new Error("Gagal menyimpan pengguna baru.");
     }
 }
 
@@ -210,7 +228,6 @@ export async function getCurrentUserDetails(uid: string): Promise<Omit<User, 'pa
 
     if (docSnap.exists()) {
         const data = docSnap.data();
-        // Ensure the returned object has the correct ID matching the auth UID
         const { password, ...userDataToReturn } = data;
         return { ...userDataToReturn, id: docSnap.id };
     } else {
