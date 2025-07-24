@@ -38,33 +38,24 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     
     try {
-        // Step 1: Find the user in Firestore first to get their official NIK.
-        // This is now the ONLY read operation before authentication.
-        const userDetail = await findUserByNikOrUsername(nikOrUsername.trim());
-
-        // Step 2: Validate if user was found
-        if (!userDetail || !userDetail.nik) {
-             throw new Error("Pengguna tidak ditemukan atau data NIK tidak valid.");
-        }
-        
-        // Step 3: Use the NIK from the database to create the email and sign in
-        const email = createEmailFromNik(userDetail.nik);
+        // This is a simplified login flow. It attempts a direct login.
+        // It assumes the NIK is used for the email, which is set during seeding.
+        // For production, a more robust lookup (e.g., via a backend function) is better.
+        const email = createEmailFromNik(nikOrUsername.trim());
         
         await signInWithEmailAndPassword(auth, email, password);
         
-        toast({
-            title: 'Login Berhasil',
-            description: `Selamat datang kembali, ${userDetail.username}.`,
-        });
+        // Toast is now handled by the AuthProvider upon successful state change.
+        // No need to show a success toast here.
 
     } catch (error: any) {
         console.error("Login process error:", error);
         
-        let errorMessage = 'Terjadi kesalahan saat login.';
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-             errorMessage = 'Kombinasi NIK/Username dan Password salah.';
-        } else if (error.message.includes("Pengguna tidak ditemukan")) {
-            errorMessage = "Pengguna tidak ditemukan di database.";
+        let errorMessage = 'Kombinasi NIK/Username dan Password salah.';
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
+            errorMessage = 'Pengguna dengan NIK/Username tersebut tidak ditemukan.';
+        } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+            errorMessage = 'Password yang Anda masukkan salah.';
         }
         
         toast({
