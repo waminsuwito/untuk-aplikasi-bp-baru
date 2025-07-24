@@ -14,14 +14,11 @@ import { format, subDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/auth-provider';
 import type { ProductionHistoryEntry, UserLocation } from '@/lib/types';
-import { firestore } from '@/lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { getDatabase, ref, onValue } from 'firebase/database';
-
 
 const MATERIAL_LABELS_KEY = 'app-material-labels';
 const SPECIFIC_GRAVITY_KEY = 'app-material-specific-gravity';
-const STOCK_COLLECTION_PREFIX = 'stock-records';
+const getStockStorageKey = (location: UserLocation, date: Date) => `app-stok-${location}-${format(date, 'yyyy-MM-dd')}`;
+const PRODUCTION_HISTORY_KEY = 'app-production-history';
 
 const defaultMaterialLabels = {
   pasir1: 'Pasir 1', pasir2: 'Pasir 2',
@@ -42,14 +39,6 @@ const createInitialStock = (): DailyStock => {
     }
     return stock as DailyStock;
 };
-
-const getSpecificGravities = (): Record<string, number> => {
-    if (typeof window === 'undefined') return {};
-    try {
-        const stored = localStorage.getItem(SPECIFIC_GRAVITY_KEY);
-        return stored ? JSON.parse(stored) : {};
-    } catch(e) { return {}; }
-}
 
 const getMaterialConfig = (): typeof defaultMaterialLabels => {
   if (typeof window === 'undefined') return defaultMaterialLabels;
@@ -77,41 +66,29 @@ export default function StokMaterialPage() {
   const [stock, setStock] = useState<DailyStock>(createInitialStock());
   const [productionHistory, setProductionHistory] = useState<ProductionHistoryEntry[]>([]);
   const [materialLabels, setMaterialLabels] = useState(defaultMaterialLabels);
-  const [specificGravities, setSpecificGravities] = useState<Record<string,number>>({});
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const getStockDocRef = (d: Date, location: UserLocation) => {
-    const dateStr = format(d, 'yyyy-MM-dd');
-    return doc(firestore, STOCK_COLLECTION_PREFIX, `${location}-${dateStr}`);
-  }
-  
   const loadProductionHistory = useCallback(() => {
-    const db = getDatabase();
-    const historyRef = ref(db, 'production-history');
-
-    const unsubscribe = onValue(historyRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const historyArray: ProductionHistoryEntry[] = Object.values(data);
-        setProductionHistory(historyArray);
-      } else {
+    try {
+        const storedData = localStorage.getItem(PRODUCTION_HISTORY_KEY);
+        if (storedData) {
+            setProductionHistory(JSON.parse(storedData));
+        } else {
+            setProductionHistory([]);
+        }
+    } catch(e) {
         setProductionHistory([]);
-      }
-    });
-
-    return unsubscribe;
+    }
   }, []);
 
   useEffect(() => {
-    const unsubscribe = loadProductionHistory();
+    loadProductionHistory();
     try {
       setMaterialLabels(getMaterialConfig());
-      setSpecificGravities(getSpecificGravities());
     } catch (error) {
       console.error("Failed to load initial config from localStorage:", error);
     }
-    return () => unsubscribe();
   }, [loadProductionHistory]);
 
   useEffect(() => {
@@ -119,18 +96,18 @@ export default function StokMaterialPage() {
 
     const fetchStockData = async () => {
         try {
-          const docRef = getStockDocRef(date, user.location as UserLocation);
-          const docSnap = await getDoc(docRef);
+          const key = getStockStorageKey(user.location as UserLocation, date);
+          const storedData = localStorage.getItem(key);
 
-          if (docSnap.exists()) {
-            setStock({ ...createInitialStock(), ...docSnap.data() });
+          if (storedData) {
+            setStock({ ...createInitialStock(), ...JSON.parse(storedData) });
           } else {
             const yesterday = subDays(date, 1);
-            const yesterdayDocRef = getStockDocRef(yesterday, user.location as UserLocation);
-            const yesterdaySnap = await getDoc(yesterdayDocRef);
+            const yesterdayKey = getStockStorageKey(user.location as UserLocation, yesterday);
+            const yesterdayData = localStorage.getItem(yesterdayKey);
             
-            if (yesterdaySnap.exists()) {
-              const yesterdayStock: DailyStock = { ...createInitialStock(), ...yesterdaySnap.data() };
+            if (yesterdayData) {
+              const yesterdayStock: DailyStock = { ...createInitialStock(), ...JSON.parse(yesterdayData) };
               const yesterdayStockAkhir = calculateStockAkhirForDay(yesterdayStock);
               
               const newTodayStock = createInitialStock();
@@ -202,8 +179,8 @@ export default function StokMaterialPage() {
         return;
     }
     try {
-      const docRef = getStockDocRef(date, user.location as UserLocation);
-      await setDoc(docRef, stock);
+      const key = getStockStorageKey(user.location as UserLocation, date);
+      localStorage.setItem(key, JSON.stringify(stock));
       toast({
         title: 'Berhasil Disimpan',
         description: `Data stok untuk tanggal ${format(date, 'd MMMM yyyy')} telah disimpan.`,
@@ -274,16 +251,11 @@ export default function StokMaterialPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[15%] font-bold text-white bg-gray-700 min-w-[150px]">KETERANGAN</TableHead>
-                {materialKeysInOrder.map(key => {
-                    let unit = 'Kg';
-                    // Unit logic is removed as all are in Kg now.
-                    
-                    return (
-                        <TableHead key={key} className="text-center font-bold text-white bg-gray-600 min-w-[150px]">
-                            {materialLabels[key]} (Kg)
-                        </TableHead>
-                    );
-                })}
+                {materialKeysInOrder.map(key => (
+                  <TableHead key={key} className="text-center font-bold text-white bg-gray-600 min-w-[150px]">
+                      {materialLabels[key]} (Kg)
+                  </TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>

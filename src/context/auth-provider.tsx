@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { type User } from '@/lib/types';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
 
+const SESSION_STORAGE_KEY = 'app-user-session';
 
 interface AuthContextType {
   user: Omit<User, 'password'> | null;
@@ -19,28 +20,40 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Omit<User, 'password'> | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
 
+  useEffect(() => {
+    try {
+      const storedUser = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch (error) {
+        console.error("Failed to load user from session storage", error);
+    }
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading && !user && pathname !== '/') {
+      router.replace('/');
+    }
+  }, [user, isLoading, pathname, router]);
+
   const logout = () => {
     setUser(null);
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
     router.replace('/');
   };
   
   const login = (userData: Omit<User, 'password'>) => {
     setUser(userData);
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(userData));
     const defaultRoute = getDefaultRouteForUser(userData);
     router.replace(defaultRoute);
   };
-
-  // If we were using a real auth system with tokens, we'd check validity here.
-  // For now, we just show the login page if no user is set.
-  useEffect(() => {
-    if (!user && pathname !== '/') {
-      router.replace('/');
-    }
-  }, [user, pathname, router]);
 
   if (isLoading) {
     return (

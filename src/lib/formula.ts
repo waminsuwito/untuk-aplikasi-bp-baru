@@ -1,10 +1,8 @@
 'use client';
 
 import type { JobMixFormula } from '@/lib/types';
-import { firestore } from '@/lib/firebase';
-import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 
-const FORMULAS_COLLECTION = 'job-mix-formulas';
+const FORMULAS_STORAGE_KEY = 'app-job-mix-formulas';
 
 const initialFormulas: JobMixFormula[] = [
   { id: '1', mutuBeton: 'K225', mutuCode: 'BPM', pasir1: 400, pasir2: 365, batu1: 500, batu2: 529, batu3: 0, batu4: 0, air: 215, semen: 371, additive1: 0, additive2: 0, additive3: 0 },
@@ -12,50 +10,48 @@ const initialFormulas: JobMixFormula[] = [
   { id: '3', mutuBeton: 'K350', mutuCode: 'BPM', pasir1: 340, pasir2: 341, batu1: 510, batu2: 511, batu3: 0, batu4: 0, air: 215, semen: 439, additive1: 0, additive2: 0, additive3: 0 },
 ];
 
-export async function getFormulas(): Promise<JobMixFormula[]> {
+export function getFormulas(): JobMixFormula[] {
   try {
-    const formulasCollection = collection(firestore, FORMULAS_COLLECTION);
-    const snapshot = await getDocs(formulasCollection);
-    if (snapshot.empty) {
-      // Seed initial data if the collection is empty
-      for (const formula of initialFormulas) {
-        const docRef = doc(firestore, FORMULAS_COLLECTION, formula.id);
-        await setDoc(docRef, formula);
-      }
+    const storedData = localStorage.getItem(FORMULAS_STORAGE_KEY);
+    if (storedData) {
+      return JSON.parse(storedData);
+    } else {
+      // Seed if empty
+      localStorage.setItem(FORMULAS_STORAGE_KEY, JSON.stringify(initialFormulas));
       return initialFormulas;
     }
-    return snapshot.docs.map(doc => doc.data() as JobMixFormula);
   } catch (error) {
-    console.error('Failed to get formulas from Firestore:', error);
+    console.error('Failed to get formulas from localStorage:', error);
     return [];
   }
 }
 
-export async function saveFormulas(formulas: JobMixFormula[]): Promise<void> {
+export function saveFormulas(formulas: JobMixFormula[]): void {
   try {
-    const formulasCollection = collection(firestore, FORMULAS_COLLECTION);
-    for (const formula of formulas) {
-      const docRef = doc(firestore, FORMULAS_COLLECTION, formula.id);
-      await setDoc(docRef, formula, { merge: true });
-    }
+    localStorage.setItem(FORMULAS_STORAGE_KEY, JSON.stringify(formulas));
   } catch (error) {
-    console.error('Failed to save formulas to Firestore:', error);
+    console.error('Failed to save formulas to localStorage:', error);
   }
 }
 
-export async function addFormula(formulaData: Omit<JobMixFormula, 'id'>): Promise<void> {
-  const newId = new Date().toISOString();
-  const newFormula: JobMixFormula = { ...formulaData, id: newId };
-  const docRef = doc(firestore, FORMULAS_COLLECTION, newId);
-  await setDoc(docRef, newFormula);
+export function addFormula(formulaData: Omit<JobMixFormula, 'id'>): void {
+  const formulas = getFormulas();
+  const newFormula: JobMixFormula = { ...formulaData, id: new Date().toISOString() };
+  const updatedFormulas = [...formulas, newFormula];
+  saveFormulas(updatedFormulas);
 }
 
-export async function updateFormula(updatedFormula: JobMixFormula): Promise<void> {
-  const docRef = doc(firestore, FORMULAS_COLLECTION, updatedFormula.id);
-  await setDoc(docRef, updatedFormula, { merge: true });
+export function updateFormula(updatedFormula: JobMixFormula): void {
+  let formulas = getFormulas();
+  const index = formulas.findIndex(f => f.id === updatedFormula.id);
+  if (index !== -1) {
+    formulas[index] = updatedFormula;
+    saveFormulas(formulas);
+  }
 }
 
-export async function deleteFormula(formulaId: string): Promise<void> {
-  const docRef = doc(firestore, FORMULAS_COLLECTION, formulaId);
-  await deleteDoc(docRef);
+export function deleteFormula(formulaId: string): void {
+  let formulas = getFormulas();
+  const updatedFormulas = formulas.filter(f => f.id !== formulaId);
+  saveFormulas(updatedFormulas);
 }

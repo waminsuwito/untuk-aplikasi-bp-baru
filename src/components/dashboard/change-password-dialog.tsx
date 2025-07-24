@@ -20,10 +20,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useToast } from '@/hooks/use-toast';
 import { changePassword } from '@/lib/auth';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/auth-provider';
 
 const passwordSchema = z.object({
   oldPassword: z.string().min(1, 'Password lama harus diisi.'),
-  newPassword: z.string().min(6, 'Password baru minimal 6 karakter.'),
+  newPassword: z.string().min(1, 'Password baru minimal 1 karakter.'),
   confirmPassword: z.string(),
 }).refine(data => data.newPassword === data.confirmPassword, {
   message: 'Password tidak cocok.',
@@ -38,6 +39,7 @@ interface ChangePasswordDialogProps {
 
 export function ChangePasswordDialog({ isOpen, onOpenChange, userId }: ChangePasswordDialogProps) {
   const { toast } = useToast();
+  const { logout } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const form = useForm<z.infer<typeof passwordSchema>>({
     resolver: zodResolver(passwordSchema),
@@ -50,20 +52,19 @@ export function ChangePasswordDialog({ isOpen, onOpenChange, userId }: ChangePas
 
   const onSubmit = async (values: z.infer<typeof passwordSchema>) => {
     setIsLoading(true);
-    try {
-      const result = await changePassword(userId, values.oldPassword, values.newPassword);
-      if (result.success) {
-        toast({ title: 'Berhasil', description: result.message });
+    const result = await changePassword(userId, values.oldPassword, values.newPassword);
+    if (result.success) {
+        toast({ title: 'Berhasil', description: 'Password telah diubah. Silakan login kembali.' });
         form.reset();
         onOpenChange(false);
-      } else {
+        // Log out user after password change to force re-login
+        setTimeout(() => {
+            logout();
+        }, 1000);
+    } else {
         toast({ variant: 'destructive', title: 'Gagal', description: result.message });
-      }
-    } catch (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Terjadi kesalahan tak terduga.' });
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   const handleOpenChange = (open: boolean) => {

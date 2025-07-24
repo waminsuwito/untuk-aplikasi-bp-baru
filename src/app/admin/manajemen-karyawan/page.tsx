@@ -6,14 +6,12 @@ import { Shield } from 'lucide-react';
 import { UserForm, type UserFormValues } from '@/components/admin/user-form';
 import { UserList } from '@/components/admin/user-list';
 import { type User, type Jabatan } from '@/lib/types';
-import { addUser, updateUser, deleteUser } from '@/lib/auth';
+import { getUsers, addUser, updateUser, deleteUser } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useState, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-provider';
-import { firestore } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
 
 
 export default function ManajemenKaryawanPage() {
@@ -23,16 +21,14 @@ export default function ManajemenKaryawanPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(() => {
     setIsLoading(true);
     try {
-      const usersRef = collection(firestore, 'users');
-      const snapshot = await getDocs(usersRef);
-      const userList = snapshot.docs.map(doc => doc.data() as User);
+      const userList = getUsers();
       setUsers(userList || []);
     } catch (error) {
       console.error("Failed to load users:", error);
-      toast({ variant: 'destructive', title: "Error", description: "Could not load user data from the database." });
+      toast({ variant: 'destructive', title: "Error", description: "Could not load user data from localStorage." });
       setUsers([]);
     } finally {
       setIsLoading(false);
@@ -45,13 +41,9 @@ export default function ManajemenKaryawanPage() {
     }
   }, [isAuthLoading, fetchUsers]);
 
-  const handleSaveUser = async (data: UserFormValues, userId: string | null) => {
-    // Fetch fresh user list for validation
-    const usersCollection = collection(firestore, 'users');
-    const snapshot = await getDocs(usersCollection);
-    const currentUsers = snapshot.docs.map(doc => doc.data() as User);
+  const handleSaveUser = (data: UserFormValues, userId: string | null) => {
+    const currentUsers = getUsers();
     
-    // Check for NIK uniqueness only
     const nikExists = currentUsers.some(
       (user) => user.nik === data.nik && user.id !== userId
     );
@@ -73,9 +65,13 @@ export default function ManajemenKaryawanPage() {
         nik: data.nik,
       };
       if (data.password) {
-        console.warn("Password change for existing users from this form is not implemented.");
+        toast({
+          variant: 'destructive',
+          title: 'Perubahan Password Ditolak',
+          description: `Gunakan fitur "Ubah Password" di menu dropdown untuk mengubah password.`,
+        });
       }
-      await updateUser(userId, userDataToUpdate);
+      updateUser(userId, userDataToUpdate);
       toast({ title: 'User Updated', description: `User "${data.username}" has been updated.` });
     } else {
        if (!data.password) {
@@ -95,14 +91,14 @@ export default function ManajemenKaryawanPage() {
           nik: data.nik,
         };
         
-        await addUser(newUser);
+        addUser(newUser);
         toast({ title: 'User Created', description: `User "${data.username}" has been created.` });
       } catch (error: any) {
         toast({ variant: 'destructive', title: 'Creation Failed', description: error.message || 'Could not create user.'});
       }
     }
     
-    await fetchUsers();
+    fetchUsers();
     setUserToEdit(null);
   };
   
@@ -114,9 +110,9 @@ export default function ManajemenKaryawanPage() {
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
-    await deleteUser(id);
-    await fetchUsers();
+  const handleDeleteUser = (id: string) => {
+    deleteUser(id);
+    fetchUsers();
   };
 
   const handleCancelEdit = () => {
@@ -189,5 +185,3 @@ export default function ManajemenKaryawanPage() {
     </div>
   );
 }
-
-    

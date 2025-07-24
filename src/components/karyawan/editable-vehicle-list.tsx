@@ -14,19 +14,35 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { userLocations, type UserLocation, type Vehicle } from '@/lib/types';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useAuth } from '@/context/auth-provider';
-import { getFirestore, collection, writeBatch, getDocs, doc, deleteDoc, setDoc } from 'firebase/firestore';
-import { firestore } from '@/lib/firebase';
+
 
 const TOTAL_ROWS = 300;
+const VEHICLES_STORAGE_KEY_PREFIX = 'app-vehicles-';
 
 type TableRowData = Partial<Vehicle>;
 
 const fields: (keyof Omit<Vehicle, 'id'>)[] = ['nomorLambung', 'nomorPolisi', 'jenisKendaraan', 'status', 'location'];
 const headers = ['NOMOR LAMBUNG', 'NOMOR POLISI', 'JENIS KENDARAAN', 'STATUS', 'MUTASI KENDARAAN'];
 
-const getVehiclesCollectionRef = (location: UserLocation) => {
-    return collection(firestore, `locations/${location}/vehicles`);
-};
+const getVehiclesForLocation = (location: UserLocation): Vehicle[] => {
+    try {
+        const key = `${VEHICLES_STORAGE_KEY_PREFIX}${location}`;
+        const storedVehicles = localStorage.getItem(key);
+        return storedVehicles ? JSON.parse(storedVehicles) : [];
+    } catch (error) {
+        console.error(`Failed to load vehicles for ${location}:`, error);
+        return [];
+    }
+}
+
+const saveVehiclesForLocation = (location: UserLocation, vehicles: Vehicle[]) => {
+    try {
+        const key = `${VEHICLES_STORAGE_KEY_PREFIX}${location}`;
+        localStorage.setItem(key, JSON.stringify(vehicles));
+    } catch (error) {
+        console.error(`Failed to save vehicles for ${location}:`, error);
+    }
+}
 
 export function EditableVehicleList() {
   const { user } = useAuth();
@@ -41,17 +57,14 @@ export function EditableVehicleList() {
     newLocation: UserLocation;
   } | null>(null);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(() => {
     if (!user?.location) {
         setIsLoading(false);
         return;
     }
     setIsLoading(true);
     try {
-      const vehiclesRef = getVehiclesCollectionRef(user.location);
-      const snapshot = await getDocs(vehiclesRef);
-      const storedVehicles = snapshot.docs.map(doc => doc.data() as Vehicle);
-      
+      const storedVehicles = getVehiclesForLocation(user.location);
       const initialData = Array(TOTAL_ROWS).fill({});
       storedVehicles.forEach((vehicle, index) => {
         if (index < TOTAL_ROWS) {
@@ -61,7 +74,7 @@ export function EditableVehicleList() {
       setTableData(initialData);
     } catch (error) {
       console.error("Failed to load vehicles:", error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Gagal memuat data armada dari database.' });
+      toast({ variant: 'destructive', title: 'Error', description: 'Gagal memuat data armada.' });
     } finally {
       setIsLoading(false);
     }
@@ -95,40 +108,34 @@ export function EditableVehicleList() {
     }
   };
 
-  const handleConfirmMutation = async () => {
+  const handleConfirmMutation = () => {
     if (!mutationDetails || !user?.location) return;
-
-    const { vehicleId, nomorPolisi, newLocation } = mutationDetails;
+    const { vehicleId, nomorPolisi, newLocation, rowIndex } = mutationDetails;
     
     try {
       // Get the vehicle data to move
-      const sourceColRef = getVehiclesCollectionRef(user.location);
-      const sourceDocRef = doc(sourceColRef, vehicleId);
+      const sourceVehicles = getVehiclesForLocation(user.location);
+      const vehicleToMove = sourceVehicles.find(v => v.id === vehicleId);
 
-      const vehiclesSnapshot = await getDocs(sourceColRef);
-      const vehicleDoc = vehiclesSnapshot.docs.find(d => d.id === vehicleId);
-
-      if (!vehicleDoc) {
+      if (!vehicleToMove) {
         throw new Error("Vehicle not found in source location.");
       }
       
-      const vehicleToMove = vehicleDoc.data() as Vehicle;
       const movedVehicleData = { ...vehicleToMove, location: newLocation };
+      const remainingSourceVehicles = sourceVehicles.filter(v => v.id !== vehicleId);
+      
+      // Add to destination
+      const destVehicles = getVehiclesForLocation(newLocation);
+      const updatedDestVehicles = [...destVehicles, movedVehicleData];
 
-      // Destination collection reference
-      const destColRef = getVehiclesCollectionRef(newLocation);
-      const destDocRef = doc(destColRef, vehicleId);
-
-      // Use a batch write to perform both operations atomically
-      const batch = writeBatch(firestore);
-      batch.delete(sourceDocRef);
-      batch.set(destDocRef, movedVehicleData);
-      await batch.commit();
+      // Save both locations
+      saveVehiclesForLocation(user.location, remainingSourceVehicles);
+      saveVehiclesForLocation(newLocation, updatedDestVehicles);
 
       toast({ title: 'Mutasi Berhasil', description: `Kendaraan ${nomorPolisi} telah dipindahkan ke ${newLocation}.` });
       
       setMutationDetails(null);
-      await loadData(); // Reload data for the current page
+      loadData(); // Reload data for the current page
     } catch (error) {
       console.error("Failed to mutate vehicle:", error);
       toast({ variant: 'destructive', title: 'Gagal Mutasi', description: 'Terjadi kesalahan saat memindahkan data kendaraan.' });
@@ -147,7 +154,7 @@ export function EditableVehicleList() {
     });
   };
 
-  const handleSaveData = async () => {
+  const handleSaveData = () => {
     if (!user?.location) return;
     setIsLoading(true);
 
@@ -168,63 +175,34 @@ export function EditableVehicleList() {
     }
 
     try {
-      const vehiclesColRef = getVehiclesCollectionRef(user.location);
-      const batch = writeBatch(firestore);
+      const vehiclesToSave: Vehicle[] = activeRows.map(row => ({
+          nomorLambung: row.nomorLambung || '',
+          nomorPolisi: row.nomorPolisi || '',
+          jenisKendaraan: row.jenisKendaraan || '',
+          status: row.status || 'BAIK',
+          location: user.location,
+          id: row.id || `${row.nomorPolisi}-${Date.now()}`,
+      }));
 
-      // First, delete all existing documents for the location to handle deletions.
-      const existingSnapshot = await getDocs(vehiclesColRef);
-      existingSnapshot.forEach(doc => {
-        batch.delete(doc.ref);
-      });
+      saveVehiclesForLocation(user.location, vehiclesToSave);
 
-      // Now, add all current active rows as new documents.
-      activeRows.forEach(vehicleData => {
-        const vehicleId = vehicleData.id || doc(collection(firestore, 'id_placeholder')).id;
-        const newDocRef = doc(vehiclesColRef, vehicleId);
-        
-        const vehicleToSave: Vehicle = {
-          nomorLambung: vehicleData.nomorLambung || '',
-          nomorPolisi: vehicleData.nomorPolisi || '',
-          jenisKendaraan: vehicleData.jenisKendaraan || '',
-          status: vehicleData.status || 'BAIK',
-          location: vehicleData.location || user.location,
-          id: vehicleId,
-        };
-        batch.set(newDocRef, vehicleToSave);
-      });
-
-      await batch.commit();
-
-      toast({ title: 'Berhasil', description: 'Semua perubahan telah disimpan ke database.' });
-      await loadData(); // Reload data to get fresh state
+      toast({ title: 'Berhasil', description: 'Semua perubahan telah disimpan.' });
+      loadData();
     } catch (error) {
       console.error("Failed to save vehicles:", error);
-      toast({ variant: 'destructive', title: 'Gagal', description: 'Tidak dapat menyimpan data ke database.' });
+      toast({ variant: 'destructive', title: 'Gagal', description: 'Tidak dapat menyimpan data.' });
     } finally {
         setIsLoading(false);
     }
   };
 
-  const handleClearAllData = async () => {
+  const handleClearAllData = () => {
     if (!user?.location) return;
     setIsLoading(true);
     try {
-        const vehiclesRef = getVehiclesCollectionRef(user.location);
-        const snapshot = await getDocs(vehiclesRef);
-        if (snapshot.empty) {
-            toast({ title: 'Tidak Ada Data', description: 'Tidak ada data armada untuk dihapus.' });
-            setIsLoading(false);
-            return;
-        }
-        
-        const batch = writeBatch(firestore);
-        snapshot.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        await batch.commit();
-        
+        saveVehiclesForLocation(user.location, []);
         toast({ variant: 'destructive', title: 'Berhasil', description: `Semua data armada di lokasi ${user.location} telah dihapus.` });
-        await loadData();
+        loadData();
     } catch (error) {
         console.error("Failed to clear vehicles:", error);
         toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal menghapus data armada.' });

@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getDatabase, ref, onValue, set, off } from 'firebase/database';
 import { WeightDisplayPanel } from './material-inventory';
 import { ControlPanel } from './control-panel';
 import { StatusPanel, type TimerDisplayState } from './status-panel';
@@ -12,13 +11,12 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { MIXING_PROCESS_STORAGE_KEY, defaultMixingProcess, MIXER_TIMER_CONFIG_KEY, defaultMixerTimerConfig } from '@/lib/config';
 import type { MixingProcessConfig, MixerTimerConfig } from '@/lib/config';
 import { useAuth } from '@/context/auth-provider';
-import type { JobMixFormula, ScheduleSheetRow, ProductionHistoryEntry, PrintJobData } from '@/lib/types';
+import type { JobMixFormula, ScheduleSheetRow, ProductionHistoryEntry } from '@/lib/types';
 import { getFormulas } from '@/lib/formula';
-import { app, database as firebaseDatabase } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getScheduleSheetData, saveScheduleSheetData } from '@/lib/schedule';
 import { printElement } from '@/lib/utils';
-import { AlertTriangle, Ban, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 type AutoProcessStep =
   | 'idle'
@@ -38,7 +36,7 @@ const generateSimulatedWeight = (target: number, roundingUnit: 1 | 5): number =>
 };
 
 const PRINTER_SETTINGS_KEY = 'app-printer-settings';
-const PRODUCTION_HISTORY_KEY = 'production-history';
+const PRODUCTION_HISTORY_KEY = 'app-production-history';
 type PrintMode = 'preview' | 'direct' | 'save';
 
 export function Dashboard() {
@@ -109,36 +107,18 @@ export function Dashboard() {
   };
 
   useEffect(() => {
-    if (isAuthLoading || !user) {
-        return;
-    }
-
-    const db = getDatabase(app);
-    const weightsRef = ref(db, 'weights');
-
-    const listener = onValue(weightsRef, (snapshot) => {
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            setAggregateWeight(data.aggregate || 0);
-            setAirWeight(data.air || 0);
-            setSemenWeight(data.semen || 0);
-        } else {
-            addLog("Inisialisasi data timbangan...", "text-blue-400");
-            set(weightsRef, { aggregate: 0, air: 0, semen: 0 });
+    // This now simulates weight updates instead of listening to Firebase
+    const interval = setInterval(() => {
+        // Only simulate if a process is running
+        if(isManualProcessRunning || (operasiMode === 'AUTO' && autoProcessStep === 'weighing')) {
+            setAggregateWeight(w => w + Math.random() * 50);
+            setAirWeight(w => w + Math.random() * 10);
+            setSemenWeight(w => w + Math.random() * 20);
         }
-    }, (error) => {
-        console.error("Firebase weight listener error:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Koneksi Timbangan Gagal',
-            description: `Tidak dapat memuat data timbangan: ${error.message}`
-        });
-    });
+    }, 1000);
 
-    return () => {
-        off(weightsRef, 'value', listener);
-    };
-  }, [isAuthLoading, user, toast]);
+    return () => clearInterval(interval);
+  }, [isManualProcessRunning, autoProcessStep, operasiMode]);
 
 
   useEffect(() => {
@@ -226,10 +206,9 @@ export function Dashboard() {
   }, []);
   
   const resetStateForNewJob = () => {
-     const db = getDatabase(app);
-     if(db && user) {
-        set(ref(db, 'weights'), { aggregate: 0, air: 0, semen: 0 });
-     }
+     setAggregateWeight(0);
+     setAirWeight(0);
+     setSemenWeight(0);
      setCurrentMixNumber(0);
      setActivityLog([]);
      setShowPrintPreview(false);
@@ -318,23 +297,17 @@ export function Dashboard() {
     };
 
     setCompletedBatchData(batchData);
-    const db = getDatabase(app);
-    const productionHistoryRef = ref(db, `${PRODUCTION_HISTORY_KEY}/${batchData.jobId}`);
-    set(productionHistoryRef, batchData);
+    const storedHistory = localStorage.getItem(PRODUCTION_HISTORY_KEY);
+    const history = storedHistory ? JSON.parse(storedHistory) : [];
+    history.push(batchData);
+    localStorage.setItem(PRODUCTION_HISTORY_KEY, JSON.stringify(history));
 
     const printSettings = localStorage.getItem(PRINTER_SETTINGS_KEY) as PrintMode | null;
 
-    if (printSettings === 'direct' || printSettings === 'preview') {
-      if (user?.location) {
-        const printJobRef = ref(firebaseDatabase, `print_jobs/${user.location}/${batchData.jobId}`);
-        const printJobPayload: PrintJobData = {
-          status: 'pending',
-          operatorName: user.username,
-          payload: batchData,
-        };
-        set(printJobRef, printJobPayload);
-        addLog(`Print job dikirim ke Admin BP untuk ${batchData.namaPelanggan}`, "text-green-400");
-      }
+    if (printSettings === 'direct') {
+        setTimeout(() => printElement('direct-print-content'), 500);
+    } else if (printSettings === 'preview') {
+        setShowPrintPreview(true);
     } else { // 'save' mode
       addLog(`Data batch untuk ${batchData.namaPelanggan} disimpan.`, "text-green-400");
     }
@@ -384,7 +357,6 @@ export function Dashboard() {
 
   const handleSetPowerOn = (isOn: boolean) => {
     if (!isOn) {
-      // Logic to stop all processes when power is turned off
       setAutoProcessStep('idle');
       setIsManualProcessRunning(false);
       resetStateForNewJob();

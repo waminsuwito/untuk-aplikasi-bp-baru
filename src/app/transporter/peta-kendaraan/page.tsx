@@ -7,13 +7,11 @@ import { useAuth } from '@/context/auth-provider';
 import type { Vehicle, Assignment, UserLocation, VehiclePosition } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Truck } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getDatabase, ref, onValue, set } from 'firebase/database';
-import { app } from '@/lib/firebase';
+import { getUsers } from '@/lib/auth';
 
 const VEHICLES_STORAGE_KEY_PREFIX = 'app-vehicles-';
 const ASSIGNMENTS_STORAGE_KEY_PREFIX = 'app-assignments-';
-const VEHICLE_POSITIONS_REF = 'vehicle_positions';
+const VEHICLE_POSITIONS_KEY = 'app-vehicle-positions';
 
 const containerStyle = {
   width: '100%',
@@ -27,7 +25,6 @@ const defaultCenter = {
   lng: 101.447779,
 };
 
-// A more realistic 2D mixer truck icon as an inline SVG (green color)
 const truckIconSvg = `
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%2322C55E" width="48px" height="48px">
     <path d="M0 0h24v24H0z" fill="none"/>
@@ -74,46 +71,46 @@ export default function PetaKendaraanPage() {
     };
   }, [isLoaded]);
 
-  // Sync with Firebase Realtime Database
+  // Simulate vehicle positions from localStorage
   useEffect(() => {
     if (!user?.location) return;
 
-    const db = getDatabase(app);
-    const positionsRef = ref(db, `${VEHICLE_POSITIONS_REF}/${user.location}`);
-    
-    // Listen for real-time updates
-    const unsubscribe = onValue(positionsRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            const positions: VehiclePosition[] = Object.values(data);
-            setVehiclePositions(positions);
-        } else {
-            // If no data, generate initial positions
-            generateInitialPositions();
-        }
-    });
-
-    // Function to generate initial positions if DB is empty
-    const generateInitialPositions = () => {
+    const generateAndSavePositions = () => {
         const vehicles = getVehiclesForLocation(user.location as UserLocation);
         const assignments = getAssignments(user.location as UserLocation);
-        const initialPositions: Record<string, VehiclePosition> = {};
+        const allUsers = getUsers();
+        const userMap = new Map(allUsers.map(u => [u.id, u]));
 
-        vehicles.forEach(vehicle => {
+        const positions: VehiclePosition[] = vehicles.map(vehicle => {
             const assignment = assignments.find(a => a.vehicleId === vehicle.id);
-            initialPositions[vehicle.id] = {
+            const operator = assignment ? userMap.get(assignment.userId) : null;
+            return {
                 id: vehicle.id,
                 nomorPolisi: vehicle.nomorPolisi,
                 jenis: vehicle.jenisKendaraan,
-                operator: assignment?.username || 'Belum ada',
+                operator: operator?.username || 'Belum ada',
                 lat: defaultCenter.lat + (Math.random() - 0.5) * 0.1,
                 lng: defaultCenter.lng + (Math.random() - 0.5) * 0.1,
             };
         });
-        set(positionsRef, initialPositions); // Write initial data to Firebase
+        
+        localStorage.setItem(`${VEHICLE_POSITIONS_KEY}-${user.location}`, JSON.stringify(positions));
+        setVehiclePositions(positions);
     };
     
-    return () => unsubscribe();
+    // Load existing or generate new positions
+    const storedPositions = localStorage.getItem(`${VEHICLE_POSITIONS_KEY}-${user.location}`);
+    if (storedPositions) {
+        setVehiclePositions(JSON.parse(storedPositions));
+    } else {
+        generateAndSavePositions();
+    }
+    
+    // Simulate real-time updates every 10 seconds
+    const intervalId = setInterval(generateAndSavePositions, 10000);
+    
+    return () => clearInterval(intervalId);
+
   }, [user]);
 
 
@@ -151,7 +148,7 @@ export default function PetaKendaraanPage() {
           Peta Posisi Kendaraan
         </CardTitle>
         <CardDescription>
-          Lokasi terakhir dari semua kendaraan yang terdaftar. Posisi diperbarui secara real-time.
+          Simulasi posisi kendaraan yang terdaftar. Posisi diperbarui setiap 10 detik.
         </CardDescription>
       </CardHeader>
       <CardContent>
