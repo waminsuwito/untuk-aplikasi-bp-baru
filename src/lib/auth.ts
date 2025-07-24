@@ -107,17 +107,26 @@ export async function loginWithIdentifier(identifier: string, passwordFromInput:
             const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
             return userCredential.user;
         } catch (error: any) {
-            // If user does not exist in Auth, create them.
-            if (error.code === 'auth/user-not-found') {
-                console.log("Super admin auth user not found, creating now...");
-                const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
-                // Also ensure the Firestore doc exists.
-                await setDoc(doc(firestore, 'users', 'superadmin-main'), SUPER_ADMIN_DEFAULTS);
-                return newUserCredential.user;
+            // If sign-in fails (e.g., user not found or wrong password), try creating the user.
+            // This handles the first-time setup for SUPERADMIN.
+            if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+                 console.log("SUPERADMIN auth user not found or credential invalid, attempting to create...");
+                try {
+                    const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
+                    // Also ensure the Firestore doc exists.
+                    await setDoc(doc(firestore, 'users', 'superadmin-main'), SUPER_ADMIN_DEFAULTS);
+                     console.log("SUPERADMIN user created successfully.");
+                    // After creating, try signing in again to be sure.
+                    return newUserCredential.user;
+                } catch (creationError: any) {
+                     // If creation fails (e.g., email already exists but password was wrong), it means the password was just wrong.
+                     console.error("SUPERADMIN creation failed. This likely means the password was incorrect.", creationError);
+                     throw new Error('Password SUPERADMIN salah.');
+                }
             }
-            // For any other error (like wrong password), just re-throw it.
+            // For any other error, just re-throw it.
             console.error("SUPERADMIN login error:", error);
-            throw new Error('Password SUPERADMIN salah atau terjadi error lain.');
+            throw new Error('Gagal login sebagai SUPERADMIN.');
         }
     }
 
