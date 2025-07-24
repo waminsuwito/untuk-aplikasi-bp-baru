@@ -38,8 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(userToSet);
 
           const defaultRoute = getDefaultRouteForUser(userData);
-          // Redirect if on login page or not on an authorized page
-          if (pathname === '/' || !pathname.startsWith('/' + defaultRoute.split('/')[1])) {
+          // Redirect if on login page, otherwise let them stay.
+          if (pathname === '/') {
               router.replace(defaultRoute);
           }
           
@@ -47,12 +47,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // User exists in Auth but not in Firestore, log them out
           await signOut(auth);
           setUser(null);
+           // Only redirect if not already on the login page
            if (pathname !== '/') {
              router.replace('/');
            }
         }
       } else {
         setUser(null);
+        // If logged out, redirect to login page, unless they are already there.
         if (pathname !== '/') {
           router.replace('/');
         }
