@@ -7,6 +7,7 @@ const USERS_STORAGE_KEY = 'app-users';
 
 const initialUsers: User[] = [
     { id: '1', username: 'SUPER ADMIN', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'SA001', password: '1' },
+    { id: '10', username: 'admin', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'ADMIN', password: '123' },
     { id: '2', username: 'ADMIN BP', jabatan: 'ADMIN BP', location: 'BP PEKANBARU', nik: 'ADMINBP-001', password: '1' },
     { id: '3', username: 'OWNER', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'OWN001', password: '1' },
     { id: '4', username: 'MIRUL', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'OP-001', password: '1' },
