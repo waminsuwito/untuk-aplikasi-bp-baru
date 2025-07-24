@@ -119,6 +119,7 @@ export default function ManajemenAlatPage() {
 
     const latestChecklistByUserNik: { [nik: string]: TruckChecklistReport } = {};
     checklistReports.forEach(report => {
+        if (!report.userNik) return;
         if (!latestChecklistByUserNik[report.userNik] || new Date(report.timestamp) > new Date(latestChecklistByUserNik[report.userNik].timestamp)) {
             latestChecklistByUserNik[report.userNik] = report;
         }
@@ -284,7 +285,7 @@ export default function ManajemenAlatPage() {
         <StatCard title="Alat Baik, Belum Ada Oprator/Driver" value={filteredData.alatBaikNoOperator.length} description="Klik untuk melihat daftar" icon={UserX} colorClass="text-blue-600" clickable onClick={() => handleShowDialog('Alat Baik, Belum Ada Operator', filteredData.alatBaikNoOperator)} />
         <StatCard title="Perlu Perhatian" value={filteredData.perluPerhatian.length} description="Klik untuk melihat daftar" icon={AlertTriangle} colorClass="text-amber-500" clickable onClick={() => handleShowDialog('Daftar Alat Perlu Perhatian', filteredData.perluPerhatian)} />
         <StatCard title="Alat Rusak" value={filteredData.alatRusak.length} description="Klik untuk melihat daftar" icon={Wrench} colorClass="text-destructive" clickable onClick={() => handleShowDialog('Daftar Alat Rusak', filteredData.alatRusak)} />
-        <StatCard title="Belum Checklist" value={filteredData.belumChecklist.length} description="Klik untuk melihat daftar" icon={FileWarning} colorClass="text-sky-600" clickable onClick={() => handleShowDialog('Alat Belum Checklist', filteredData.belumChecklist)} />
+        <StatCard title="Belum Checklist" value={filteredData.belumChecklist.length} description="Klik untuk melihat daftar" icon={FileWarning} colorClass="text-sky-600" clickable onClick={() => handleShowDialog('Daftar Kendaraan Belum Checklist', filteredData.belumChecklist)} />
         <StatCard 
             title="Alat Rusak Berat" 
             value={filteredData.alatRusakBerat.length} 
@@ -350,3 +351,5 @@ export default function ManajemenAlatPage() {
     </div>
   );
 }
+
+    

@@ -55,7 +55,7 @@ export default function ChecklistHarianLoaderPage() {
                 const todaysReport = allReports.find(r => r.id === dailyId);
 
                 if (todaysReport) {
-                    setLastSubmissionTime(new Date(todaysReport.timestamp));
+                    // Don't set last submission time anymore to allow re-submission
                 }
             } catch (error) {
                 console.error("Failed to load today's report from localStorage", error);
@@ -153,7 +153,7 @@ export default function ChecklistHarianLoaderPage() {
     
             if (newUniqueDamagedItems.length > 0) {
                 existingWo.vehicle.damagedItems.push(...newUniqueDamagedItems);
-                existingWo.vehicle.timestamp = report.timestamp;
+                existingWo.vehicle.timestamp = report.timestamp; // Update with latest report time
                 localStorage.setItem(WORK_ORDER_COLLECTION_KEY, JSON.stringify(allWorkOrders));
                 toast({
                     title: "Work Order Diperbarui",
@@ -222,7 +222,7 @@ export default function ChecklistHarianLoaderPage() {
             const existingReportIndex = allReports.findIndex(r => r.id === dailyId);
 
             if (existingReportIndex > -1) {
-                allReports[existingReportIndex] = report;
+                allReports[existingReportIndex] = report; // Overwrite today's report
             } else {
                 allReports.push(report);
             }
@@ -234,7 +234,8 @@ export default function ChecklistHarianLoaderPage() {
 
             createWorkOrderFromChecklist(report);
             
-            setChecklistItems(getInitialChecklistState());
+            // Optionally reset form if desired after submission
+            // setChecklistItems(getInitialChecklistState());
 
         } catch (error) {
             console.error("Failed to save checklist report", error);
@@ -360,3 +361,5 @@ export default function ChecklistHarianLoaderPage() {
         </Card>
     );
 }
+
+    
