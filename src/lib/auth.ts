@@ -2,8 +2,8 @@
 'use client';
 
 import { auth, firestore } from './firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc, runTransaction, query, where } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, type User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import type { User } from './types';
 
 // Helper to create a fake email from NIK/Username
@@ -47,7 +47,6 @@ export async function getUsers(): Promise<User[]> {
     // Check if superadmin exists in the list
     const superAdminExists = userList.some(u => u.id === SUPER_ADMIN_DEFAULTS.id);
     if (!superAdminExists) {
-      // If it doesn't exist in Firestore, create it. The login function will handle Auth creation.
       await setDoc(doc(firestore, 'users', SUPER_ADMIN_DEFAULTS.id), SUPER_ADMIN_DEFAULTS);
       userList.push(SUPER_ADMIN_DEFAULTS);
     }
@@ -66,9 +65,6 @@ export async function updateUser(userId: string, updatedData: Partial<User>): Pr
 }
 
 export async function deleteUser(userId: string): Promise<void> {
-  // This is complex because it requires a server-side environment to delete a Firebase Auth user.
-  // For the client-side, we'll just delete the Firestore record.
-  // Proper implementation requires a Cloud Function.
   await deleteDoc(doc(firestore, 'users', userId));
   console.warn(`User with ID ${userId} deleted from Firestore, but not from Firebase Auth.`);
 }
@@ -81,9 +77,7 @@ export async function changePassword(oldPassword: string, newPassword: string): 
 
   try {
     const email = user.email;
-    // Re-authenticate user before changing password
     await signInWithEmailAndPassword(auth, email, oldPassword);
-
     await updatePassword(user, newPassword);
     return { success: true, message: "Password updated successfully." };
   } catch (error: any) {
@@ -103,32 +97,25 @@ export async function loginWithIdentifier(identifier: string, passwordFromInput:
     if (isSuperAdminLogin) {
         const email = createEmail(identifier);
         try {
-            // Always try to sign in first.
             const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
             return userCredential.user;
         } catch (error: any) {
-            // If user does not exist in Auth, create them.
-            if (error.code === 'auth/user-not-found') {
-                 console.log("SUPERADMIN auth user not found, attempting to create...");
-                try {
+            console.error("SUPERADMIN login error:", error);
+            if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+                throw new Error('Password SUPERADMIN salah.');
+            } else if (error.code === 'auth/user-not-found') {
+                 try {
+                    console.log("SUPERADMIN auth user not found, creating it now...");
                     const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
-                    // Also ensure the Firestore doc exists.
                     await setDoc(doc(firestore, 'users', 'superadmin-main'), SUPER_ADMIN_DEFAULTS);
-                     console.log("SUPERADMIN user created successfully.");
+                    console.log("SUPERADMIN user created successfully.");
                     return newUserCredential.user;
                 } catch (createError: any) {
-                    console.error("Failed to create SUPERADMIN user after not found error:", createError);
-                    // This can happen if there's a race condition or other issue.
-                    throw new Error(`Gagal membuat pengguna SUPERADMIN. Error: ${createError.message}`);
+                    console.error("Failed to create SUPERADMIN user:", createError);
+                    throw new Error(`Gagal membuat pengguna SUPERADMIN. Coba lagi.`);
                 }
-            }
-            // If the error is anything else (like wrong password), re-throw it.
-            else if (error.code === 'auth/invalid-credential') {
-                 throw new Error('Password SUPERADMIN salah.');
-            }
-            else {
-                console.error("SUPERADMIN login error:", error);
-                throw new Error(`Login gagal: ${error.message}`);
+            } else {
+                 throw new Error(`Login gagal: ${error.message}`);
             }
         }
     }
@@ -136,9 +123,8 @@ export async function loginWithIdentifier(identifier: string, passwordFromInput:
     // Standard user login flow
     const usersCollection = collection(firestore, 'users');
     
-    // Query for NIK or username
     const nikQuery = query(usersCollection, where("nik", "==", identifier.toUpperCase()));
-    const usernameQuery = query(userscllections, where("username", "==", identifier.toUpperCase()));
+    const usernameQuery = query(usersCollection, where("username", "==", identifier.toUpperCase()));
 
     const nikSnapshot = await getDocs(nikQuery);
     const usernameSnapshot = await getDocs(usernameQuery);
@@ -154,7 +140,6 @@ export async function loginWithIdentifier(identifier: string, passwordFromInput:
         throw new Error('User dengan NIK atau Username tersebut tidak ditemukan.');
     }
     
-    // Use the NIK to create the email for sign-in, as it's more unique and stable
     const authEmail = createEmail(userProfile.nik || userProfile.username);
     try {
         const userCredential = await signInWithEmailAndPassword(auth, authEmail, passwordFromInput);
