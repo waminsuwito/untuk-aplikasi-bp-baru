@@ -1,53 +1,6 @@
-
 {
   "rules": {
-    "users": {
-      ".read": "auth != null",
-      ".write": "auth != null && request.auth.uid == 'bWkI3e3nJ4Vz2qf9d8fG7hJkL5a2'",
-      "$uid": {
-        ".read": "auth != null",
-        ".write": "auth != null && (request.auth.uid == $uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.jabatan == 'SUPER ADMIN')"
-      }
-    },
-    "locations": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "attendance-records": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "unloading-activities": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "daily-activity-reports": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "loader-checklists": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "tm-checklists": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "work-orders": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "job-mix-formulas": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "schedule-sheet": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "stock-records": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    }
+    ".read": false,
+    ".write": false
   }
 }

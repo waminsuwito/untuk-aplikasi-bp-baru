@@ -10,20 +10,25 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, createEmailFromNik } from '@/lib/auth';
 import Image from 'next/image';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
 import type { User } from '@/lib/types';
 
+const dummyUsers: Omit<User, 'password'>[] = [
+    { id: '1', username: 'SUPERADMIN', jabatan: 'SUPER ADMIN', location: 'BP PEKANBARU', nik: 'SA001' },
+    { id: '2', username: 'ADMINBP', jabatan: 'ADMIN BP', location: 'BP PEKANBARU', nik: 'ADMINBP-001' },
+    { id: '3', username: 'OWNER', jabatan: 'OWNER', location: 'BP PEKANBARU', nik: 'OWN001' },
+    { id: '4', username: 'MIRUL', jabatan: 'OPRATOR BP', location: 'BP PEKANBARU', nik: 'OP-001' },
+    { id: '5', username: 'KARYAWAN_TM', jabatan: 'SOPIR TM', location: 'BP PEKANBARU', nik: 'TM001' },
+    { id: '6', username: 'KEPALA_MEKANIK', jabatan: 'KEPALA MEKANIK', location: 'BP PEKANBARU', nik: 'MEK001' },
+];
+
 export default function LoginPage() {
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { user, login, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [nikOrUsername, setNikOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,52 +42,29 @@ export default function LoginPage() {
     }
     setIsLoggingIn(true);
     
-    try {
-        // This is a simplified login flow. It attempts a direct login.
-        // It assumes the NIK/Username is used for the email, which is set during seeding.
-        // For production, a more robust lookup (e.g., via a backend function) is better.
-        const email = createEmailFromNik(nikOrUsername.trim());
-        
-        await signInWithEmailAndPassword(auth, email, password);
-        
-        // The AuthProvider will handle redirection upon successful state change.
-        // No need to show a success toast here.
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    } catch (error: any) {
-        console.error("Login process error:", error);
-        
-        let errorMessage = 'Kombinasi NIK/Username dan Password salah.';
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
-            errorMessage = 'Pengguna dengan NIK/Username tersebut tidak ditemukan.';
-        } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-            errorMessage = 'Password yang Anda masukkan salah.';
-        } else if (error.code === 'auth/too-many-requests') {
-            errorMessage = 'Akses ke akun ini telah dinonaktifkan sementara karena terlalu banyak percobaan login yang gagal. Anda dapat memulihkannya dengan mereset password atau coba lagi nanti.'
-        }
-        
+    const userToLogin = dummyUsers.find(
+        u => (u.nik?.toUpperCase() === nikOrUsername.toUpperCase() || u.username.toUpperCase() === nikOrUsername.toUpperCase())
+    );
+
+    // For this disconnected version, any password is valid for a found user.
+    if (userToLogin) {
+        toast({
+            title: 'Login Berhasil',
+            description: `Selamat datang, ${userToLogin.username}!`,
+        });
+        login(userToLogin);
+    } else {
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description: errorMessage,
+            description: 'Pengguna tidak ditemukan. Silakan gunakan salah satu data dummy yang ada.',
         });
-    } finally {
-        setIsLoggingIn(false);
     }
-  };
 
-
-  const handleSeed = async () => {
-    setIsSeeding(true);
-    toast({ title: 'Proses Inisialisasi', description: 'Menyiapkan data pengguna awal ke database...' });
-    try {
-      const result = await seedUsersToFirestore();
-      toast({ title: 'Selesai', description: result.message });
-    } catch (e: any) {
-      console.error(e);
-      toast({ variant: 'destructive', title: 'Error', description: `Gagal melakukan inisialisasi: ${e.message}` });
-    } finally {
-      setIsSeeding(false);
-    }
+    setIsLoggingIn(false);
   };
   
   if (isAuthLoading || user) {
@@ -99,7 +81,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
             <Image src="/logo.png" alt="Logo Perusahaan" width={80} height={80} className="mx-auto mb-4 rounded-full" />
           <CardTitle className="text-2xl">PT. FARIKA RIAU PERKASA</CardTitle>
-          <CardDescription>Silakan login untuk melanjutkan</CardDescription>
+          <CardDescription>Silakan login untuk melanjutkan (Firebase terputus)</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
@@ -111,9 +93,8 @@ export default function LoginPage() {
                 placeholder="Masukkan NIK atau Username Anda"
                 required
                 value={nikOrUsername}
-                onChange={(e) => setNikOrUsername(e.target.value.toUpperCase())}
-                style={{ textTransform: 'uppercase' }}
-                disabled={isLoggingIn || isSeeding}
+                onChange={(e) => setNikOrUsername(e.target.value)}
+                disabled={isLoggingIn}
                 />
             </div>
             <div className="space-y-2">
@@ -125,12 +106,12 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoggingIn || isSeeding}
+                disabled={isLoggingIn}
                 />
             </div>
             </CardContent>
             <CardFooter className="flex-col gap-2">
-            <Button type="submit" className="w-full" disabled={isLoggingIn || isSeeding}>
+            <Button type="submit" className="w-full" disabled={isLoggingIn}>
                 {isLoggingIn ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -138,10 +119,7 @@ export default function LoginPage() {
                 )}
                 Login
             </Button>
-            <Button type="button" variant="link" className="text-xs text-muted-foreground" onClick={handleSeed} disabled={isLoggingIn || isSeeding}>
-              {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              (Jika login gagal, klik di sini untuk inisialisasi database)
-            </Button>
+             <p className="text-xs text-muted-foreground text-center pt-2">Gunakan NIK: SA001, ADMINBP-001, OP-001, dll.</p>
             </CardFooter>
         </form>
       </Card>
