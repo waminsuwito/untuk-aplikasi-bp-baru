@@ -40,14 +40,13 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     
     try {
-        // The most robust way is to assume the input is the NIK,
-        // as NIK is the unique identifier used for creating the auth email.
+        // Simple, direct login attempt. Assume the input is the NIK.
+        // This avoids all the complex lookup logic that was failing.
         const email = createEmailFromNik(nikOrUsername);
         
         await signInWithEmailAndPassword(auth, email, password);
         
         // If we reach here, login was successful. The AuthProvider will handle redirection.
-        // We can show a toast based on the input, as we don't know the real username yet.
         toast({
             title: 'Login Berhasil',
             description: `Selamat datang kembali.`,
@@ -55,10 +54,17 @@ export default function LoginPage() {
 
     } catch (error: any) {
         console.error("Login process error:", error);
+        let errorMessage = 'NIK atau password yang Anda masukkan salah.';
+        if (error.code === 'auth/invalid-credential') {
+             errorMessage = 'Kredensial tidak valid. Pastikan NIK dan password benar.';
+        } else if (error.code === 'auth/user-not-found') {
+             errorMessage = 'Pengguna dengan NIK ini tidak ditemukan di sistem otentikasi.';
+        }
+        
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description: 'NIK atau password yang Anda masukkan salah.',
+            description: errorMessage,
         });
     } finally {
         setIsLoggingIn(false);
