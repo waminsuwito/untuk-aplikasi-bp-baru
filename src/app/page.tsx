@@ -41,18 +41,18 @@ export default function LoginPage() {
     try {
         // Step 1: Find user in Firestore by NIK or Username
         const usersRef = collection(firestore, "users");
-        const q = query(usersRef, where("nik", "==", nikOrUsername.trim()));
-        const q2 = query(usersRef, where("username", "==", nikOrUsername.trim()));
+        const qNik = query(usersRef, where("nik", "==", nikOrUsername.trim()));
+        const qUsername = query(usersRef, where("username", "==", nikOrUsername.trim()));
         
-        const querySnapshot = await getDocs(q);
-        const querySnapshot2 = await getDocs(q2);
+        const nikSnapshot = await getDocs(qNik);
+        const usernameSnapshot = await getDocs(qUsername);
 
         let userDetail: Omit<User, 'password'> | null = null;
 
-        if (!querySnapshot.empty) {
-            userDetail = querySnapshot.docs[0].data() as User;
-        } else if (!querySnapshot2.empty) {
-            userDetail = querySnapshot2.docs[0].data() as User;
+        if (!nikSnapshot.empty) {
+            userDetail = nikSnapshot.docs[0].data() as User;
+        } else if (!usernameSnapshot.empty) {
+            userDetail = usernameSnapshot.docs[0].data() as User;
         }
 
         // Step 2: Validate if user was found
