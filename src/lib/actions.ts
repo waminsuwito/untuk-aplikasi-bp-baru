@@ -1,14 +1,37 @@
-'use server';
+import type {NextConfig} from 'next';
 
-import { suggestMixAdjustments, type SuggestMixAdjustmentsInput, type SuggestMixAdjustmentsOutput } from '@/ai/flows/suggest-mix-adjustments';
+const nextConfig: NextConfig = {
+  output: 'export',
+  /* config options here */
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  images: {
+    unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'i.ibb.co',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'iili.io',
+        port: '',
+        pathname: '/**',
+      }
+    ],
+  },
+};
 
-export async function getAiSuggestions(input: SuggestMixAdjustmentsInput): Promise<SuggestMixAdjustmentsOutput> {
-  try {
-    const result = await suggestMixAdjustments(input);
-    return result;
-  } catch (error) {
-    console.error('Error getting AI suggestions:', error);
-    // In a real app, you might want to return a more structured error
-    throw new Error('Failed to get AI suggestions.');
-  }
-}
+export default nextConfig;
