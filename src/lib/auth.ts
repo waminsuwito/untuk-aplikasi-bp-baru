@@ -47,6 +47,7 @@ export async function getUsers(): Promise<User[]> {
     // Check if superadmin exists in the list
     const superAdminExists = userList.some(u => u.id === SUPER_ADMIN_DEFAULTS.id);
     if (!superAdminExists) {
+      // Ensure the Firestore document for superadmin exists
       await setDoc(doc(firestore, 'users', SUPER_ADMIN_DEFAULTS.id), SUPER_ADMIN_DEFAULTS);
       userList.push(SUPER_ADMIN_DEFAULTS);
     }
@@ -97,25 +98,31 @@ export async function loginWithIdentifier(identifier: string, passwordFromInput:
     if (isSuperAdminLogin) {
         const email = createEmail(identifier);
         try {
+            // Always try to sign in first.
             const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
             return userCredential.user;
         } catch (error: any) {
-            console.error("SUPERADMIN login error:", error);
-            if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-                throw new Error('Password SUPERADMIN salah.');
-            } else if (error.code === 'auth/user-not-found') {
-                 try {
-                    console.log("SUPERADMIN auth user not found, creating it now...");
+            // If user does not exist in Auth, create them.
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                 console.log("SUPERADMIN auth user not found, attempting to create...");
+                try {
                     const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
+                    // Also ensure the Firestore doc exists.
                     await setDoc(doc(firestore, 'users', 'superadmin-main'), SUPER_ADMIN_DEFAULTS);
-                    console.log("SUPERADMIN user created successfully.");
+                     console.log("SUPERADMIN user created successfully.");
                     return newUserCredential.user;
                 } catch (createError: any) {
-                    console.error("Failed to create SUPERADMIN user:", createError);
-                    throw new Error(`Gagal membuat pengguna SUPERADMIN. Coba lagi.`);
+                     console.error("Failed to create SUPERADMIN user during login flow:", createError);
+                     if (createError.code === 'auth/email-already-in-use') {
+                         throw new Error('Password SUPERADMIN salah. Coba lagi.');
+                     }
+                     throw new Error(`Gagal membuat pengguna SUPERADMIN: ${createError.message}`);
                 }
-            } else {
-                 throw new Error(`Login gagal: ${error.message}`);
+            }
+            // For other errors like wrong password on an existing account.
+            else {
+                 console.error("SUPERADMIN login error:", error);
+                 throw new Error('Password SUPERADMIN salah.');
             }
         }
     }
