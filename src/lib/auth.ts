@@ -17,8 +17,6 @@ const SUPER_ADMIN_DEFAULTS = {
   jabatan: 'SUPER ADMIN' as const,
   location: 'BP PEKANBARU' as const,
 };
-let SUPER_ADMIN_PASSWORD = '123456';
-
 
 // Function to create both Firebase Auth user and Firestore user profile
 export async function addUser(userData: Omit<User, 'id'>): Promise<{ success: boolean; message?: string }> {
@@ -49,6 +47,7 @@ export async function getUsers(): Promise<User[]> {
     // Check if superadmin exists in the list
     const superAdminExists = userList.some(u => u.id === SUPER_ADMIN_DEFAULTS.id);
     if (!superAdminExists) {
+      // If it doesn't exist in Firestore, create it. The login function will handle Auth creation.
       await setDoc(doc(firestore, 'users', SUPER_ADMIN_DEFAULTS.id), SUPER_ADMIN_DEFAULTS);
       userList.push(SUPER_ADMIN_DEFAULTS);
     }
@@ -82,6 +81,7 @@ export async function changePassword(oldPassword: string, newPassword: string): 
 
   try {
     const email = user.email;
+    // Re-authenticate user before changing password
     await signInWithEmailAndPassword(auth, email, oldPassword);
 
     await updatePassword(user, newPassword);
@@ -89,7 +89,7 @@ export async function changePassword(oldPassword: string, newPassword: string): 
   } catch (error: any) {
     console.error("Password change error:", error);
     let message = "An unknown error occurred.";
-    if (error.code === 'auth/wrong-password') {
+    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
       message = "Password lama salah.";
     }
     return { success: false, message };
@@ -103,50 +103,21 @@ export async function loginWithIdentifier(identifier: string, passwordFromInput:
     if (isSuperAdminLogin) {
         const email = createEmail(identifier);
         try {
-            // First, try to sign in
+            // Always try to sign in first.
             const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
             return userCredential.user;
         } catch (error: any) {
-            // If user does not exist, create them
+            // If user does not exist in Auth, create them.
             if (error.code === 'auth/user-not-found') {
-                console.log("Super admin auth user not found, attempting to create...");
+                console.log("Super admin auth user not found, creating now...");
                 const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
-                SUPER_ADMIN_PASSWORD = passwordFromInput; // Update in-memory password
+                // Also ensure the Firestore doc exists.
                 await setDoc(doc(firestore, 'users', 'superadmin-main'), SUPER_ADMIN_DEFAULTS);
                 return newUserCredential.user;
             }
-            // If password is wrong, UPDATE the password and re-login
-            if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                console.warn("Super admin password was wrong. Attempting to reset it.");
-                 try {
-                    // This is a temporary, client-side-only solution. It requires a privileged environment in a real app.
-                    // For this context, we assume we need to force-fix it.
-                    // A proper implementation would involve a Cloud Function.
-                    // Here, we can't directly update the password without the user object.
-                    // So we will just re-throw a clearer error for now.
-                    // The logic to "force update" password client-side is too insecure and complex.
-                    // Let's guide the user to delete and recreate.
-                    
-                    // The best we can do from the client is guide the user. A better approach is needed.
-                    // But for this tool, let's just make it work. The user is stuck.
-                    // The issue is we don't have the `user` object to call `updatePassword`.
-                    // We can't get it without logging in.
-                    // So, the previous logic was flawed.
-                    
-                    // Let's adjust the logic again. If SUPERADMIN exists but password is wrong,
-                    // we cannot fix it from here. The only robust way is to delete the auth user
-                    // from Firebase Console and let the app recreate it.
-                    
-                    // But I will try one last trick.
-                    // Re-create the user. This will fail if the email is taken.
-                     throw new Error('Password SUPERADMIN salah. Coba lagi dengan password yang benar.');
-
-                } catch (updateError) {
-                    throw new Error('Gagal mereset password SUPERADMIN. Hubungi developer.');
-                }
-            }
-            // For other errors
-            throw error;
+            // For any other error (like wrong password), just re-throw it.
+            console.error("SUPERADMIN login error:", error);
+            throw new Error('Password SUPERADMIN salah atau terjadi error lain.');
         }
     }
 
