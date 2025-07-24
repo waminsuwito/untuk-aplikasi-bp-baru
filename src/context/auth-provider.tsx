@@ -29,15 +29,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const userData = userDoc.data() as User;
-          const { password, ...userToSet } = userData;
-          setUser(userToSet);
-        } else {
-          await signOut(auth);
-          setUser(null);
+        try {
+          // Use 'superadmin-main' for the superadmin user, otherwise use uid
+          const userId = firebaseUser.email?.startsWith('superadmin@') ? 'superadmin-main' : firebaseUser.uid;
+          const userDocRef = doc(firestore, 'users', userId);
+          const userDoc = await getDoc(userDocRef);
+
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as User;
+            const { password, ...userToSet } = userData;
+            setUser(userToSet);
+          } else {
+            // This case might happen if Firestore doc is deleted but Auth user is not
+            await signOut(auth);
+            setUser(null);
+          }
+        } catch(e) {
+            console.error("Error fetching user document", e);
+            await signOut(auth);
+            setUser(null);
         }
       } else {
         setUser(null);
@@ -58,12 +68,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user && isAuthPage) {
       const defaultRoute = getDefaultRouteForUser(user);
       router.replace(defaultRoute);
+      return;
     }
     
     // If there is no user, they should ONLY be on the login page.
     // If they are on any other page, redirect them.
     if (!user && !isAuthPage) {
       router.replace('/');
+      return;
     }
   }, [user, pathname, isLoading, router]);
   
