@@ -27,38 +27,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        const userDetails = await getCurrentUserDetails(firebaseUser.uid);
-        setUser(userDetails);
-        
-        // Redirect logic for logged-in users
-        if (userDetails) {
-          const defaultRoute = getDefaultRouteForUser(userDetails);
-          // If user is on the login page, redirect them to their dashboard
-          if (pathname === '/') {
-            router.replace(defaultRoute);
+        // Firebase has confirmed a user is logged in.
+        // NOW it's safe to read from Firestore.
+        try {
+          const userDetails = await getCurrentUserDetails(firebaseUser.uid);
+          setUser(userDetails);
+
+          if (userDetails) {
+            const defaultRoute = getDefaultRouteForUser(userDetails);
+            // If user is on the login page, redirect them to their dashboard
+            if (pathname === '/') {
+              router.replace(defaultRoute);
+            }
+          } else {
+             // This case is unlikely but handles if user exists in Auth but not Firestore
+             await firebaseLogout();
+             setUser(null);
+             router.replace('/');
           }
-          // Optional: Add logic here to redirect if they are on a wrong path for their role
+        } catch (error) {
+           console.error("Failed to fetch user details from Firestore:", error);
+           await firebaseLogout();
+           setUser(null);
+           router.replace('/');
+        } finally {
+            setIsLoading(false);
         }
+
       } else {
+        // Firebase confirmed no user is logged in.
         setUser(null);
-        // If user is not logged in and not on the login page, redirect to login
         if (pathname !== '/') {
           router.replace('/');
         }
+        setIsLoading(false);
       }
-      // Finished checking, stop loading
-      setIsLoading(false);
     });
 
     return () => unsubscribe();
   }, [pathname, router]);
 
   const logout = async () => {
-    setIsLoading(true);
     await firebaseLogout();
-    setUser(null);
+    setUser(null); // State will be finally set by onAuthStateChanged
     router.replace('/');
-    // No need to set isLoading to false, as the onAuthStateChanged will handle it
   };
 
   if (isLoading) {
@@ -69,8 +81,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // Prevent rendering children on the server or during the initial loading phase if not on the login page
+  if (!user && pathname !== '/') {
+      return null;
+  }
+  
   return (
-    <AuthContext.Provider value={{ user, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, logout, isLoading: false }}>
       {children}
     </AuthContext.Provider>
   );
