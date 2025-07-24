@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { type User, type Jabatan, userLocations, jabatanOptions } from '@/lib/types';
@@ -62,12 +63,10 @@ export async function seedUsersToFirestore() {
         authUid = userCredential.user.uid;
       } catch (authError: any) {
         if (authError.code === 'auth/email-already-in-use') {
-          console.warn(`Pengguna Auth untuk ${user.username} sudah ada. Mencari UID...`);
-          // This part is tricky without Admin SDK. For this client-side seed, we can't easily get the UID.
-          // The best approach is to let the user delete them from the Firebase Console if a full clean is needed.
-          // For now, we will skip adding to firestore if we can't create the auth user.
-          failCount++;
-          continue; 
+          console.warn(`Pengguna Auth untuk ${user.username} sudah ada. Melanjutkan proses simpan ke Firestore.`);
+           // We can't get the UID of the existing user on the client, so we will skip creating a Firestore doc if auth user exists
+           // This is a limitation of client-side seeding.
+          continue;
         } else {
           throw authError; // Rethrow other auth errors
         }
@@ -110,10 +109,9 @@ export async function getUsers(): Promise<User[]> {
     }
 }
 
-
-export async function addUser(userData: Omit<User, 'id' | 'password'> & { password?: string }): Promise<User | null> {
+export async function addUser(userData: Omit<User, 'id'> & { password?: string }): Promise<User | null> {
     if (!userData.password) {
-        throw new Error("Password is required to create a new user.");
+        throw new Error("Password wajib diisi untuk pengguna baru.");
     }
     
     // Check for NIK uniqueness in Firestore first
@@ -125,34 +123,30 @@ export async function addUser(userData: Omit<User, 'id' | 'password'> & { passwo
     }
 
     try {
-        const newUserEmail = createEmailFromNik(userData.nik || '');
-        // This call might sign out the current admin user if not handled properly.
-        // We assume the auth provider will handle the state change.
-        const userCredential = await createUserWithEmailAndPassword(auth, newUserEmail, userData.password);
-        const authUid = userCredential.user.uid;
-
+        const tempId = doc(collection(firestore, 'id_placeholder')).id;
         const newUser: User = {
-            id: authUid,
+            id: tempId, // Temporary ID
             username: userData.username,
+            password: userData.password, // Store password temporarily
             jabatan: userData.jabatan,
             location: userData.location,
             nik: userData.nik,
         };
         
-        const userDocRef = doc(firestore, 'users', authUid);
+        // Save the user data to Firestore with a temporary ID.
+        // A backend function/trigger would ideally handle the Auth creation.
+        // Since we are client-only, the user must login once to create their auth account.
+        const userDocRef = doc(firestore, 'users', tempId);
         await setDoc(userDocRef, newUser);
         
         return newUser;
 
     } catch(error: any) {
-        console.error("Failed to add user:", error);
-        if (error.code === 'auth/email-already-in-use') {
-          // This case should be rare now because of the Firestore check above, but it's a good fallback.
-          throw new Error(`NIK "${userData.nik}" sudah terdaftar di sistem otentikasi.`);
-        }
-        throw error; // Re-throw other errors
+        console.error("Gagal menambahkan pengguna ke Firestore:", error);
+        throw new Error("Gagal menyimpan pengguna baru ke database.");
     }
 }
+
 
 export async function updateUser(userId: string, userData: Partial<Omit<User, 'id' | 'password'>>): Promise<void> {
     const userDocRef = doc(firestore, 'users', userId);

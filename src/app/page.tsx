@@ -12,9 +12,9 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { seedUsersToFirestore, createEmailFromNik, getCurrentUserDetails } from '@/lib/auth';
 import Image from 'next/image';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, firestore } from '@/lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
 
 export default function LoginPage() {
@@ -47,23 +47,47 @@ export default function LoginPage() {
         const nikSnapshot = await getDocs(qNik);
         const usernameSnapshot = await getDocs(qUsername);
 
-        let userDetail: Omit<User, 'password'> | null = null;
+        let userDetail: Omit<User, 'password'> & { password?: string } | null = null;
+        let userDocId: string | null = null;
 
         if (!nikSnapshot.empty) {
             userDetail = nikSnapshot.docs[0].data() as User;
+            userDocId = nikSnapshot.docs[0].id;
         } else if (!usernameSnapshot.empty) {
             userDetail = usernameSnapshot.docs[0].data() as User;
+            userDocId = usernameSnapshot.docs[0].id;
         }
 
-        // Step 2: Validate if user was found
         if (!userDetail || !userDetail.nik) {
              throw new Error("Pengguna tidak ditemukan atau data NIK tidak valid.");
         }
         
-        // Step 3: Use the NIK from the database to create the email and sign in
         const email = createEmailFromNik(userDetail.nik);
         
-        await signInWithEmailAndPassword(auth, email, password);
+        try {
+           await signInWithEmailAndPassword(auth, email, password);
+        } catch (error: any) {
+            // If user does not exist in Auth, but exists in Firestore (new user case)
+            if (error.code === 'auth/user-not-found' && userDetail.password) {
+                console.log("Pengguna tidak ditemukan di Auth, mencoba membuat pengguna baru...");
+                const userCredential = await createUserWithEmailAndPassword(auth, email, userDetail.password);
+                
+                // Update Firestore document with the new permanent UID
+                const newUid = userCredential.user.uid;
+                const oldDocRef = doc(firestore, 'users', userDocId!);
+                const newDocRef = doc(firestore, 'users', newUid);
+                
+                const { password, ...userDataToKeep } = userDetail;
+                await setDoc(newDocRef, { ...userDataToKeep, id: newUid });
+                await deleteDoc(oldDocRef);
+
+                console.log(`Pengguna baru ${userDetail.username} berhasil disinkronkan ke Auth.`);
+
+            } else {
+                // Re-throw other sign-in errors
+                throw error;
+            }
+        }
         
         toast({
             title: 'Login Berhasil',
@@ -77,7 +101,7 @@ export default function LoginPage() {
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
              errorMessage = 'Kombinasi NIK/Username dan Password salah.';
         } else if (error.code === 'auth/user-not-found') {
-            errorMessage = 'Pengguna dengan NIK tersebut tidak ditemukan di sistem otentikasi.';
+            errorMessage = 'Pengguna dengan NIK tersebut tidak ditemukan.';
         } else if (error.message.includes("Pengguna tidak ditemukan")) {
             errorMessage = error.message;
         }
@@ -91,6 +115,7 @@ export default function LoginPage() {
         setIsLoggingIn(false);
     }
   };
+
 
   const handleSeed = async () => {
     setIsSeeding(true);
