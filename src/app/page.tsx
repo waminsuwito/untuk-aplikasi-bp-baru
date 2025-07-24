@@ -42,23 +42,29 @@ export default function LoginPage() {
     
     try {
         const usersRef = collection(firestore, 'users');
-        const searchInput = nikOrUsername.toUpperCase();
+        const searchInput = nikOrUsername; // Keep original case
 
-        // Query by NIK first
-        const nikQuery = query(usersRef, where("nik", "==", searchInput), limit(1));
-        let querySnapshot = await getDocs(nikQuery);
+        // Build potential queries
+        const queries = [
+            where("nik", "==", searchInput.toUpperCase()), // Search by NIK (case-insensitive)
+            where("username", "==", searchInput) // Search by username (case-sensitive)
+        ];
         
-        // If not found by NIK, query by username
-        if (querySnapshot.empty) {
-            const usernameQuery = query(usersRef, where("username", "==", searchInput), limit(1));
-            querySnapshot = await getDocs(usernameQuery);
+        let userDetail = null;
+
+        for (const q of queries) {
+            const finalQuery = query(usersRef, q, limit(1));
+            const querySnapshot = await getDocs(finalQuery);
+            if (!querySnapshot.empty) {
+                userDetail = querySnapshot.docs[0].data();
+                break; // Found user, exit loop
+            }
         }
 
-        if (querySnapshot.empty) {
+        if (!userDetail) {
              throw new Error("User not found in database.");
         }
         
-        const userDetail = querySnapshot.docs[0].data();
         if (!userDetail.nik) {
             throw new Error("User data is incomplete (missing NIK)");
         }
