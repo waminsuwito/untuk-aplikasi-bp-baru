@@ -3,9 +3,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { auth, firestore } from '@/lib/firebase';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { type User } from '@/lib/types';
-import { getUsers } from '@/lib/auth';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
+import { getUsers } from '@/lib/auth';
 
 interface AuthContextType {
   user: Omit<User, 'password'> | null;
@@ -16,6 +19,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Helper to create a fake email from NIK/Username
+const createEmail = (identifier: string) => `${identifier.replace(/\s+/g, '_')}@database.com`;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Omit<User, 'password'> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,50 +29,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    try {
-        const storedUser = localStorage.getItem('active-user');
-        if (storedUser) {
-            const activeUser: User = JSON.parse(storedUser);
-            // Omit password before setting to state
-            const { password, ...userToSet } = activeUser;
-            setUser(userToSet);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as User;
+          const { password, ...userToSet } = userData;
+          setUser(userToSet);
 
-            const defaultRoute = getDefaultRouteForUser(activeUser);
-            if (pathname === '/' || pathname !== defaultRoute) {
-                // Redirect if they are on the login page or not on their default page
-                // This can be adjusted based on desired behavior
-            }
-        } else if (pathname !== '/') {
-            router.replace('/');
+          const defaultRoute = getDefaultRouteForUser(userData);
+          if (pathname === '/' || !pathname.startsWith(defaultRoute.split('/')[1])) {
+              router.replace(defaultRoute);
+          }
+
+        } else {
+          // User exists in Auth but not in Firestore, log them out
+          await signOut(auth);
+          setUser(null);
         }
-    } catch (error) {
-        console.error("Failed to load user from localStorage", error);
+      } else {
+        setUser(null);
         if (pathname !== '/') {
           router.replace('/');
         }
-    }
-    setIsLoading(false);
+      }
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [pathname, router]);
 
   const login = useCallback(async (identifier: string, passwordFromInput: string): Promise<void> => {
-    const allUsers = getUsers();
-    const matchedUser = allUsers.find(
-      u => (u.nik?.toUpperCase() === identifier.toUpperCase() || u.username.toUpperCase() === identifier.toUpperCase())
-    );
-
-    if (matchedUser && matchedUser.password === passwordFromInput) {
-        const { password, ...userToSet } = matchedUser;
-        localStorage.setItem('active-user', JSON.stringify(matchedUser));
-        setUser(userToSet);
-        const defaultRoute = getDefaultRouteForUser(matchedUser);
-        router.replace(defaultRoute);
-    } else {
+    try {
+        const email = createEmail(identifier);
+        await signInWithEmailAndPassword(auth, email, passwordFromInput);
+        // The onAuthStateChanged listener will handle the rest
+    } catch (error: any) {
+        console.error("Login error:", error);
         throw new Error('Kombinasi NIK/Username dan Password salah.');
     }
-  }, [router]);
+  }, []);
   
-  const logout = useCallback(() => {
-    localStorage.removeItem('active-user');
+  const logout = useCallback(async () => {
+    await signOut(auth);
     setUser(null);
     router.replace('/');
   }, [router]);

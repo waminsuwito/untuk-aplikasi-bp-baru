@@ -1,30 +1,35 @@
 'use client';
 
+import { firestore } from './firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import type { ScheduleSheetRow } from '@/lib/types';
 
-export const SCHEDULE_SHEET_STORAGE_KEY = 'app-schedule-sheet-data';
+export const SCHEDULE_SHEET_STORAGE_KEY = 'schedule-sheet'; // This will be the document ID
 
-export function getScheduleSheetData(): ScheduleSheetRow[] {
+export async function getScheduleSheetData(): Promise<ScheduleSheetRow[]> {
   try {
-    const storedData = localStorage.getItem(SCHEDULE_SHEET_STORAGE_KEY);
-    if (storedData) {
-      const data = JSON.parse(storedData);
+    const docRef = doc(firestore, 'schedules', SCHEDULE_SHEET_STORAGE_KEY);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      const data = docSnap.data().sheetData;
       // Ensure it's an array
       return Array.isArray(data) ? data : [];
     }
   } catch (error) {
-    console.error('Failed to get schedule sheet data from localStorage:', error);
+    console.error('Failed to get schedule sheet data from Firestore:', error);
   }
   return []; // Return empty array if nothing is stored or on error
 }
 
-export function saveScheduleSheetData(data: ScheduleSheetRow[]): void {
+export async function saveScheduleSheetData(data: ScheduleSheetRow[]): Promise<void> {
   try {
     // Filter out rows that are completely empty before saving
     const nonEmptyData = data.filter(row => Object.values(row).some(val => val && String(val).trim() !== ''));
-    localStorage.setItem(SCHEDULE_SHEET_STORAGE_KEY, JSON.stringify(nonEmptyData));
+    const docRef = doc(firestore, 'schedules', SCHEDULE_SHEET_STORAGE_KEY);
+    await setDoc(docRef, { sheetData: nonEmptyData }, { merge: true });
   } catch (error) {
-    console.error('Failed to save schedule sheet data to localStorage:', error);
+    console.error('Failed to save schedule sheet data to Firestore:', error);
     throw error; // Re-throw the error to be caught by the caller
   }
 }

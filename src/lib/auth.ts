@@ -1,107 +1,78 @@
 'use client';
 
+import { auth, firestore } from './firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { User } from './types';
 
-const USERS_STORAGE_KEY = 'app-users';
-
-// Seed the initial admin user if no users are present
-const seedInitialUser = () => {
-  try {
-    const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-    if (!storedUsers || JSON.parse(storedUsers).length === 0) {
-      const initialAdmin: User = {
-        id: 'superadmin-main',
-        username: 'admin',
-        password: '123', // Note: Storing plain text passwords is not secure for production.
-        jabatan: 'SUPER ADMIN',
-        location: 'BP PEKANBARU',
-        nik: 'SA001'
-      };
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify([initialAdmin]));
-    }
-  } catch (error) {
-    console.error('Failed to seed initial user:', error);
-  }
-};
-
-// Call seed function on script load.
-seedInitialUser();
+// Helper to create a fake email from NIK/Username
+const createEmail = (identifier: string) => `${identifier.replace(/\s+/g, '_')}@database.com`;
 
 // Function to create both Firebase Auth user and Firestore user profile
-export function addUser(userData: Omit<User, 'id'>): { success: boolean; message?: string } {
-    const currentUsers = getUsers();
-    const nikExists = currentUsers.some(u => u.nik === userData.nik);
-
-    if (nikExists) {
-        return { success: false, message: `User with NIK ${userData.nik} already exists.` };
-    }
-
-    const newUser = { ...userData, id: new Date().toISOString() };
-    currentUsers.push(newUser);
-    try {
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(currentUsers));
-        return { success: true };
-    } catch(e) {
-        return { success: false, message: 'Failed to save user to localStorage.' };
-    }
-}
-
-
-export function getUsers(): User[] {
-    try {
-        const storedUsers = localStorage.getItem(USERS_STORAGE_KEY);
-        return storedUsers ? JSON.parse(storedUsers) : [];
-    } catch (error) {
-        console.error('Failed to get users from localStorage:', error);
-        return [];
-    }
-}
-
-export function updateUser(userId: string, updatedData: Partial<Omit<User, 'password'>>): void {
-    const users = getUsers();
-    const userIndex = users.findIndex(u => u.id === userId);
-    if (userIndex !== -1) {
-        users[userIndex] = { ...users[userIndex], ...updatedData };
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-    }
-}
-
-export function deleteUser(userId: string): void {
-    const users = getUsers();
-    const updatedUsers = users.filter(u => u.id !== userId);
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
-}
-
-export function changePassword(
-  oldPasswordFromInput: string,
-  newPasswordFromInput: string
-): { success: boolean, message: string } {
+export async function addUser(userData: Omit<User, 'id'>): Promise<{ success: boolean; message?: string }> {
   try {
-    const activeUserStr = localStorage.getItem('active-user');
-    if (!activeUserStr) {
-      return { success: false, message: "No active user session." };
-    }
-    const activeUser: User = JSON.parse(activeUserStr);
-    
-    const allUsers = getUsers();
-    const userInDb = allUsers.find(u => u.id === activeUser.id);
-    
-    if (!userInDb || userInDb.password !== oldPasswordFromInput) {
-        return { success: false, message: "Password lama salah." };
-    }
+    const email = createEmail(userData.nik || userData.username);
+    const userCredential = await createUserWithEmailAndPassword(auth, email, userData.password!);
+    const user = userCredential.user;
 
-    const updatedUsers = allUsers.map(u => 
-        u.id === activeUser.id ? { ...u, password: newPasswordFromInput } : u
-    );
+    const { password, ...userDataToSave } = userData;
 
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
-    // Also update the active user session if needed, or force re-login
-    localStorage.removeItem('active-user');
+    await setDoc(doc(firestore, "users", user.uid), {
+      ...userDataToSave,
+      id: user.uid,
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error adding user:", error);
+    return { success: false, message: error.message };
+  }
+}
 
+export async function getUsers(): Promise<User[]> {
+  try {
+    const usersCollection = collection(firestore, 'users');
+    const userSnapshot = await getDocs(usersCollection);
+    const userList = userSnapshot.docs.map(doc => doc.data() as User);
+    return userList;
+  } catch (error) {
+    console.error("Error getting users:", error);
+    return [];
+  }
+}
+
+export async function updateUser(userId: string, updatedData: Partial<User>): Promise<void> {
+  const userRef = doc(firestore, 'users', userId);
+  await updateDoc(userRef, updatedData);
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  // This is complex because it requires a server-side environment to delete a Firebase Auth user.
+  // For the client-side, we'll just delete the Firestore record.
+  // Proper implementation requires a Cloud Function.
+  await deleteDoc(doc(firestore, 'users', userId));
+  console.warn(`User with ID ${userId} deleted from Firestore, but not from Firebase Auth.`);
+}
+
+export async function changePassword(oldPassword: string, newPassword: string): Promise<{ success: boolean, message: string }> {
+  const user = auth.currentUser;
+  if (!user || !user.email) {
+    return { success: false, message: "No user is currently signed in or user has no email." };
+  }
+
+  try {
+    // Re-authenticate user before changing password
+    const email = user.email;
+    await signInWithEmailAndPassword(auth, email, oldPassword);
+
+    // If re-authentication is successful, update the password
+    await updatePassword(user, newPassword);
     return { success: true, message: "Password updated successfully." };
-
-  } catch(error) {
+  } catch (error: any) {
     console.error("Password change error:", error);
-    return { success: false, message: "An unknown error occurred." };
+    let message = "An unknown error occurred.";
+    if (error.code === 'auth/wrong-password') {
+      message = "Password lama salah.";
+    }
+    return { success: false, message };
   }
 }

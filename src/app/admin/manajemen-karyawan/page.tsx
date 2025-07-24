@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -21,14 +20,14 @@ export default function ManajemenKaryawanPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchUsers = useCallback(() => {
+  const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const userList = getUsers();
+      const userList = await getUsers();
       setUsers(userList || []);
     } catch (error) {
       console.error("Failed to load users:", error);
-      toast({ variant: 'destructive', title: "Error", description: "Could not load user data from localStorage." });
+      toast({ variant: 'destructive', title: "Error", description: "Could not load user data from database." });
       setUsers([]);
     } finally {
       setIsLoading(false);
@@ -41,8 +40,8 @@ export default function ManajemenKaryawanPage() {
     }
   }, [isAuthLoading, fetchUsers]);
 
-  const handleSaveUser = (data: UserFormValues, userId: string | null) => {
-    const currentUsers = getUsers();
+  const handleSaveUser = async (data: UserFormValues, userId: string | null) => {
+    const currentUsers = await getUsers();
     
     const nikExists = currentUsers.some(
       (user) => user.nik === data.nik && user.id !== userId
@@ -71,7 +70,7 @@ export default function ManajemenKaryawanPage() {
           description: `Gunakan fitur "Ubah Password" di menu dropdown untuk mengubah password.`,
         });
       }
-      updateUser(userId, userDataToUpdate);
+      await updateUser(userId, userDataToUpdate);
       toast({ title: 'User Updated', description: `User "${data.username}" has been updated.` });
     } else {
        if (!data.password) {
@@ -91,14 +90,14 @@ export default function ManajemenKaryawanPage() {
           nik: data.nik,
         };
         
-        addUser(newUser);
+        await addUser(newUser);
         toast({ title: 'User Created', description: `User "${data.username}" has been created.` });
       } catch (error: any) {
         toast({ variant: 'destructive', title: 'Creation Failed', description: error.message || 'Could not create user.'});
       }
     }
     
-    fetchUsers();
+    await fetchUsers();
     setUserToEdit(null);
   };
   
@@ -110,9 +109,9 @@ export default function ManajemenKaryawanPage() {
     }
   };
 
-  const handleDeleteUser = (id: string) => {
-    deleteUser(id);
-    fetchUsers();
+  const handleDeleteUser = async (id: string) => {
+    await deleteUser(id);
+    await fetchUsers();
   };
 
   const handleCancelEdit = () => {

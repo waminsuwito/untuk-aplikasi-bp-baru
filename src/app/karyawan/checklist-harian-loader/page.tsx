@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -12,6 +11,8 @@ import { useAuth } from '@/context/auth-provider';
 import { format } from 'date-fns';
 import { ClipboardCheck, Camera, Loader2, Upload, CheckCircle } from 'lucide-react';
 import type { TruckChecklistItem, TruckChecklistReport, ChecklistStatus, UserLocation, WorkOrder } from '@/lib/types';
+import { firestore } from '@/lib/firebase';
+import { collection, doc, getDoc, setDoc, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import Image from 'next/image';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
@@ -48,18 +49,13 @@ export default function ChecklistHarianLoaderPage() {
 
      useEffect(() => {
         if (user) {
-            try {
-                const storedReports = localStorage.getItem(CHECKLIST_COLLECTION_KEY);
-                const allReports: TruckChecklistReport[] = storedReports ? JSON.parse(storedReports) : [];
-                const dailyId = getDailyChecklistId(user.id);
-                const todaysReport = allReports.find(r => r.id === dailyId);
-
-                if (todaysReport) {
-                    // Don't set last submission time anymore to allow re-submission
+            const dailyId = getDailyChecklistId(user.id);
+            const docRef = doc(firestore, CHECKLIST_COLLECTION_KEY, dailyId);
+            getDoc(docRef).then(docSnap => {
+                if (docSnap.exists()) {
+                   // Allow resubmission
                 }
-            } catch (error) {
-                console.error("Failed to load today's report from localStorage", error);
-            }
+            });
         }
     }, [user]);
 
@@ -133,7 +129,7 @@ export default function ChecklistHarianLoaderPage() {
         );
     };
     
-    const createWorkOrderFromChecklist = (report: TruckChecklistReport) => {
+    const createWorkOrderFromChecklist = async (report: TruckChecklistReport) => {
         if (!user) return;
         const damagedItems = report.items.filter(item => item.status === 'rusak' || item.status === 'perlu_perhatian');
     
@@ -141,20 +137,22 @@ export default function ChecklistHarianLoaderPage() {
             return;
         }
     
-        const storedWorkOrders = localStorage.getItem(WORK_ORDER_COLLECTION_KEY);
-        const allWorkOrders: WorkOrder[] = storedWorkOrders ? JSON.parse(storedWorkOrders) : [];
-        
-        const existingWoIndex = allWorkOrders.findIndex(wo => wo.vehicle.userId === user.id && wo.status !== 'Selesai');
+        const woCollection = collection(firestore, WORK_ORDER_COLLECTION_KEY);
+        const q = query(woCollection, where("vehicle.userId", "==", user.id), where("status", "!=", "Selesai"));
+        const existingWoSnapshot = await getDocs(q);
 
-        if (existingWoIndex > -1) {
-            const existingWo = allWorkOrders[existingWoIndex];
+        if (!existingWoSnapshot.empty) {
+            const existingWoDoc = existingWoSnapshot.docs[0];
+            const existingWo = existingWoDoc.data() as WorkOrder;
             const existingDamagedIds = new Set(existingWo.vehicle.damagedItems.map(item => item.id));
             const newUniqueDamagedItems = damagedItems.filter(item => !existingDamagedIds.has(item.id));
     
             if (newUniqueDamagedItems.length > 0) {
-                existingWo.vehicle.damagedItems.push(...newUniqueDamagedItems);
-                existingWo.vehicle.timestamp = report.timestamp; // Update with latest report time
-                localStorage.setItem(WORK_ORDER_COLLECTION_KEY, JSON.stringify(allWorkOrders));
+                const updatedDamagedItems = [...existingWo.vehicle.damagedItems, ...newUniqueDamagedItems];
+                await updateDoc(existingWoDoc.ref, {
+                    "vehicle.damagedItems": updatedDamagedItems,
+                    "vehicle.timestamp": report.timestamp,
+                });
                 toast({
                     title: "Work Order Diperbarui",
                     description: "Laporan kerusakan baru telah ditambahkan ke Work Order yang sudah ada.",
@@ -180,8 +178,7 @@ export default function ChecklistHarianLoaderPage() {
                 usedSpareParts: [],
             };
     
-            allWorkOrders.push(newWorkOrder);
-            localStorage.setItem(WORK_ORDER_COLLECTION_KEY, JSON.stringify(allWorkOrders));
+            await setDoc(doc(firestore, WORK_ORDER_COLLECTION_KEY, workOrderId), newWorkOrder);
             toast({
                 title: "Work Order Dibuat",
                 description: `Laporan kerusakan otomatis dibuat untuk Mekanik.`,
@@ -217,25 +214,13 @@ export default function ChecklistHarianLoaderPage() {
                 vehicleType: 'loader',
             };
             
-            const storedReports = localStorage.getItem(CHECKLIST_COLLECTION_KEY);
-            let allReports: TruckChecklistReport[] = storedReports ? JSON.parse(storedReports) : [];
-            const existingReportIndex = allReports.findIndex(r => r.id === dailyId);
-
-            if (existingReportIndex > -1) {
-                allReports[existingReportIndex] = report; // Overwrite today's report
-            } else {
-                allReports.push(report);
-            }
-            
-            localStorage.setItem(CHECKLIST_COLLECTION_KEY, JSON.stringify(allReports));
+            const docRef = doc(firestore, CHECKLIST_COLLECTION_KEY, dailyId);
+            await setDoc(docRef, report, { merge: true });
 
             toast({ title: 'Berhasil', description: 'Checklist harian berhasil dikirim.' });
             setLastSubmissionTime(submissionTime);
 
-            createWorkOrderFromChecklist(report);
-            
-            // Optionally reset form if desired after submission
-            // setChecklistItems(getInitialChecklistState());
+            await createWorkOrderFromChecklist(report);
 
         } catch (error) {
             console.error("Failed to save checklist report", error);
@@ -361,5 +346,3 @@ export default function ChecklistHarianLoaderPage() {
         </Card>
     );
 }
-
-    
