@@ -10,11 +10,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, getUsers, createEmailFromNik } from '@/lib/auth';
+import { seedUsersToFirestore, createEmailFromNik } from '@/lib/auth';
 import Image from 'next/image';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth, firestore } from '@/lib/firebase';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -34,52 +33,32 @@ export default function LoginPage() {
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description: 'NIK/Username dan Password harus diisi.',
+            description: 'NIK dan Password harus diisi.',
         });
         return;
     }
     setIsLoggingIn(true);
     
     try {
-        const usersRef = collection(firestore, 'users');
-        const searchInput = nikOrUsername; // Keep original case
-
-        // Build potential queries
-        const queries = [
-            where("nik", "==", searchInput.toUpperCase()), // Search by NIK (case-insensitive)
-            where("username", "==", searchInput) // Search by username (case-sensitive)
-        ];
-        
-        let userDetail = null;
-
-        for (const q of queries) {
-            const finalQuery = query(usersRef, q, limit(1));
-            const querySnapshot = await getDocs(finalQuery);
-            if (!querySnapshot.empty) {
-                userDetail = querySnapshot.docs[0].data();
-                break; // Found user, exit loop
-            }
-        }
-
-        if (!userDetail) {
-             throw new Error("User not found in database.");
-        }
-        
-        if (!userDetail.nik) {
-            throw new Error("User data is incomplete (missing NIK)");
-        }
-        
-        const email = createEmailFromNik(userDetail.nik);
+        // The most robust way is to assume the input is the NIK,
+        // as NIK is the unique identifier used for creating the auth email.
+        const email = createEmailFromNik(nikOrUsername);
         
         await signInWithEmailAndPassword(auth, email, password);
-        // On success, the AuthProvider's onAuthStateChanged will handle redirection.
+        
+        // If we reach here, login was successful. The AuthProvider will handle redirection.
+        // We can show a toast based on the input, as we don't know the real username yet.
+        toast({
+            title: 'Login Berhasil',
+            description: `Selamat datang kembali.`,
+        });
 
     } catch (error: any) {
         console.error("Login process error:", error);
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description: 'NIK/Username atau password yang Anda masukkan salah.',
+            description: 'NIK atau password yang Anda masukkan salah.',
         });
     } finally {
         setIsLoggingIn(false);
@@ -119,11 +98,11 @@ export default function LoginPage() {
         <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
             <div className="space-y-2">
-                <Label htmlFor="nik">NIK / Username</Label>
+                <Label htmlFor="nik">NIK</Label>
                 <Input
                 id="nik"
                 type="text"
-                placeholder="Masukkan NIK atau username Anda"
+                placeholder="Masukkan NIK Anda"
                 required
                 value={nikOrUsername}
                 onChange={(e) => setNikOrUsername(e.target.value)}
