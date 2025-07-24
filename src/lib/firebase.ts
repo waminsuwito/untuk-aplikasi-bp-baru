@@ -7,14 +7,14 @@ import { getDatabase } from "firebase/database";
 // Your web app's Firebase configuration
 // These variables should be in a .env.local file
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
-  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+  apiKey: "AIzaSyA4yWJZ21J5WY0nIFRMMbLBwc9ZMBySLhA",
+  authDomain: "mymanager-40720.firebaseapp.com",
+  projectId: "mymanager-40720",
+  storageBucket: "mymanager-40720.appspot.com",
+  messagingSenderId: "172872646446",
+  appId: "1:172872646446:web:3bf4bed1fc2ec675ba04bf",
+  measurementId: "G-FC8BEMR30L",
+  databaseURL: "https://mymanager-40720-default-rtdb.firebaseio.com"
 };
 
 // Initialize Firebase
