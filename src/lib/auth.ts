@@ -103,27 +103,25 @@ export async function loginWithIdentifier(identifier: string, passwordFromInput:
     if (isSuperAdminLogin) {
         const email = createEmail(identifier);
         try {
-            // Always try to sign in first.
             const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
             return userCredential.user;
         } catch (error: any) {
-            // If sign-in fails because the user doesn't exist, create it.
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                 console.log("SUPERADMIN auth user not found, attempting to create...");
-                try {
-                    const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
-                    // Also ensure the Firestore doc exists.
-                    await setDoc(doc(firestore, 'users', 'superadmin-main'), SUPER_ADMIN_DEFAULTS);
-                     console.log("SUPERADMIN user created successfully.");
-                    return newUserCredential.user;
-                } catch (creationError: any) {
-                     console.error("SUPERADMIN creation failed. This likely means the password was incorrect for an existing user.", creationError);
-                     throw new Error('Password SUPERADMIN salah.');
-                }
+            if (error.code === 'auth/user-not-found') {
+                // User does not exist in Auth, so create them
+                console.log("SUPERADMIN auth user not found, creating now...");
+                const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
+                await setDoc(doc(firestore, 'users', SUPER_ADMIN_DEFAULTS.id), SUPER_ADMIN_DEFAULTS);
+                console.log("SUPERADMIN user created successfully in Auth and Firestore.");
+                return newUserCredential.user;
+            } else if (error.code === 'auth/invalid-credential') {
+                // User exists, but password was wrong.
+                console.error("SUPERADMIN login failed: wrong password.");
+                throw new Error('Password SUPERADMIN salah.');
+            } else {
+                // Another unexpected error occurred
+                console.error("SUPERADMIN login error:", error);
+                throw new Error('Gagal login sebagai SUPERADMIN karena error tak terduga.');
             }
-            // For any other error, just re-throw it.
-            console.error("SUPERADMIN login error:", error);
-            throw new Error('Gagal login sebagai SUPERADMIN.');
         }
     }
 
