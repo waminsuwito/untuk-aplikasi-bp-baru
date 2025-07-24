@@ -98,14 +98,19 @@ export async function seedUsersToFirestore() {
 
 /**
  * Retrieves the list of users from Firestore.
+ * This is an unsafe operation on the client if rules are not set up correctly.
+ * It's better to fetch users directly in the component after auth check.
  * @returns {Promise<User[]>} An array of user objects.
  */
 export async function getUsers(): Promise<User[]> {
+    if (!auth.currentUser) {
+        console.warn("Attempted to get users without an authenticated user.");
+        return [];
+    }
     try {
       const usersRef = collection(firestore, 'users');
       const snapshot = await getDocs(usersRef);
       if (snapshot.empty) {
-        console.log("No users found in Firestore. Seeding might be needed.");
         return [];
       }
       return snapshot.docs.map(doc => doc.data() as User);
@@ -225,9 +230,11 @@ export async function getCurrentUserDetails(uid: string): Promise<Omit<User, 'pa
     if (docSnap.exists()) {
         const data = docSnap.data();
         const { password, ...userDataToReturn } = data;
-        return { ...userDataToReturn, id: docSnap.id };
+        return { ...userDataToReturn, id: docSnap.id } as Omit<User, 'password'>;
     } else {
         console.warn(`No Firestore document found for UID: ${uid}`);
         return null;
     }
 }
+
+    

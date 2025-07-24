@@ -6,16 +6,18 @@ import { Shield } from 'lucide-react';
 import { UserForm, type UserFormValues } from '@/components/admin/user-form';
 import { UserList } from '@/components/admin/user-list';
 import { type User, type Jabatan } from '@/lib/types';
-import { getUsers, addUser, updateUser, deleteUser } from '@/lib/auth';
+import { addUser, updateUser, deleteUser } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useState, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-provider';
+import { firestore } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 
 export default function ManajemenKaryawanPage() {
-  const { isLoading: isAuthLoading } = useAuth();
+  const { user: authUser, isLoading: isAuthLoading } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,7 +26,9 @@ export default function ManajemenKaryawanPage() {
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const userList = await getUsers();
+      const usersRef = collection(firestore, 'users');
+      const snapshot = await getDocs(usersRef);
+      const userList = snapshot.docs.map(doc => doc.data() as User);
       setUsers(userList || []);
     } catch (error) {
       console.error("Failed to load users:", error);
@@ -42,9 +46,12 @@ export default function ManajemenKaryawanPage() {
   }, [isAuthLoading, fetchUsers]);
 
   const handleSaveUser = async (data: UserFormValues, userId: string | null) => {
-    const currentUsers = await getUsers();
+    // Fetch fresh user list for validation
+    const usersCollection = collection(firestore, 'users');
+    const snapshot = await getDocs(usersCollection);
+    const currentUsers = snapshot.docs.map(doc => doc.data() as User);
     
-    // Check for NIK uniqueness only, as username can be the same
+    // Check for NIK uniqueness only
     const nikExists = currentUsers.some(
       (user) => user.nik === data.nik && user.id !== userId
     );
@@ -182,3 +189,5 @@ export default function ManajemenKaryawanPage() {
     </div>
   );
 }
+
+    
