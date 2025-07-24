@@ -78,7 +78,7 @@ export function ControlPanel({
     }
   }
 
-  const isStartDisabled = !powerOn || !jobInfo.reqNo.trim() || Number(jobInfo.targetVolume) <= 0 || (operasiMode === 'AUTO' && !!mixWarning) || (operasiMode === 'MANUAL' && isManualProcessRunning) || !!volumeWarning || !!scheduleStatusWarning || !hasActiveSchedule;
+  const isStartDisabled = !powerOn || !jobInfo.reqNo.trim() || Number(jobInfo.targetVolume) <= 0 || !!mixWarning || (operasiMode === 'MANUAL' && isManualProcessRunning) || !!volumeWarning || !!scheduleStatusWarning || !hasActiveSchedule;
   const isStopDisabled = !powerOn || (operasiMode === 'MANUAL' && !isManualProcessRunning) || !hasActiveSchedule;
   
   const isFormDisabled = !powerOn || (jobInfo.reqNo.trim() !== '' && !isJobInfoLocked) || !hasActiveSchedule;
