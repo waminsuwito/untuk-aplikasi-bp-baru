@@ -35,15 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const userData = userDoc.data() as User;
           const { password, ...userToSet } = userData;
           setUser(userToSet);
-
-          const defaultRoute = getDefaultRouteForUser(userData);
-          // Jika pengguna sudah login dan masih di halaman login,
-          // arahkan mereka ke halaman default mereka.
-          if (pathname === '/') {
-            router.replace(defaultRoute);
-          }
         } else {
-          // Kasus anomali: pengguna ada di Auth tapi tidak di Firestore. Logout paksa.
           await signOut(auth);
           setUser(null);
         }
@@ -54,38 +46,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [router, pathname]);
+  }, []);
 
-  // Efek terpisah untuk menangani pengalihan halaman yang dilindungi
   useEffect(() => {
-    // Jangan lakukan apa-apa jika masih loading
     if (isLoading) return;
 
     const isAuthPage = pathname === '/';
     
-    // Jika pengguna tidak ada (null) dan tidak berada di halaman login,
-    // paksa mereka ke halaman login.
-    if (!user && !isAuthPage) {
-      router.replace('/');
-    }
-
-    // Jika pengguna sudah ada dan mencoba mengakses halaman login,
-    // arahkan mereka ke halaman default mereka.
+    // If there is a user, they should NOT be on the login page.
+    // Redirect them to their default route.
     if (user && isAuthPage) {
       const defaultRoute = getDefaultRouteForUser(user);
       router.replace(defaultRoute);
+    }
+    
+    // If there is no user, they should ONLY be on the login page.
+    // If they are on any other page, redirect them.
+    if (!user && !isAuthPage) {
+      router.replace('/');
     }
   }, [user, pathname, isLoading, router]);
   
 
   const login = useCallback(async (identifier: string, passwordFromInput: string): Promise<void> => {
-    // Fungsi onAuthStateChanged di atas akan menangani redirect setelah login berhasil
+    // onAuthStateChanged in the first useEffect will handle setting the user state.
+    // The second useEffect will handle the redirect after the user state is updated.
     await loginWithIdentifier(identifier, passwordFromInput);
   }, []);
   
   const logout = useCallback(async () => {
     await signOut(auth);
-    // onAuthStateChanged akan menangani state user, dan efek kedua akan redirect
+    // onAuthStateChanged will set user to null, and the redirect effect will run.
   }, []);
 
 
@@ -95,12 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
-  }
-
-  // Mencegah "flicker" halaman yang dilindungi sebelum redirect
-  const isAuthPage = pathname === '/';
-  if (!isLoading && !user && !isAuthPage) {
-      return null;
   }
 
   return (
