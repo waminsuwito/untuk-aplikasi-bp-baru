@@ -10,12 +10,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, createEmailFromNik, getUsers } from '@/lib/auth';
+import { seedUsersToFirestore, createEmailFromNik } from '@/lib/auth';
 import Image from 'next/image';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { type User } from '@/lib/types';
-
 
 export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -32,47 +30,31 @@ export default function LoginPage() {
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description: 'NIK/Username dan Password harus diisi.',
+            description: 'NIK dan Password harus diisi.',
         });
         return;
     }
     setIsLoggingIn(true);
     
     try {
-        const allUsers = await getUsers();
-        const inputLower = nikOrUsername.toLowerCase();
-        
-        // Find user by either NIK or username, case-insensitively
-        const userDetail = allUsers.find(u => 
-            (u.nik?.toLowerCase() === inputLower) || 
-            (u.username.toLowerCase() === inputLower)
-        );
-
-        if (!userDetail || !userDetail.nik) {
-             toast({
-                variant: 'destructive',
-                title: 'Login Gagal',
-                description: 'Pengguna tidak ditemukan di database. Pastikan NIK atau Username benar dan sudah melakukan inisialisasi.',
-            });
-            setIsLoggingIn(false);
-            return;
-        }
-
-        const email = createEmailFromNik(userDetail.nik);
+        // Langsung coba login menggunakan input sebagai NIK
+        const email = createEmailFromNik(nikOrUsername);
         
         await signInWithEmailAndPassword(auth, email, password);
         
+        // Jika login berhasil, AuthProvider akan mendeteksi perubahan dan mengarahkan.
+        // Kita bisa menampilkan pesan sukses di sini.
         toast({
             title: 'Login Berhasil',
-            description: `Selamat datang kembali, ${userDetail.username}.`,
+            description: `Selamat datang kembali.`,
         });
 
     } catch (error: any) {
         console.error("Login process error:", error);
         
         let errorMessage = 'Terjadi kesalahan saat login.';
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-             errorMessage = 'Password yang Anda masukkan salah.';
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+             errorMessage = 'Kombinasi NIK dan Password salah atau pengguna tidak ditemukan.';
         }
         
         toast({
