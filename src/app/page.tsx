@@ -38,35 +38,19 @@ export default function LoginPage() {
     }
     setIsLoggingIn(true);
     
+    // Simplified Login Flow: Attempt login directly, then fetch details.
+    // This is more robust against Firestore/Auth data desync.
     try {
-        // Step 1: Find user in Firestore by NIK or Username (case-insensitive for username)
-        const usersRef = collection(firestore, 'users');
-        const nikQuery = query(usersRef, where("nik", "==", nikOrUsername));
-        const usernameQuery = query(usersRef, where("username", "==", nikOrUsername));
-
-        const nikSnapshot = await getDocs(nikQuery);
-        const usernameSnapshot = await getDocs(usernameQuery);
-        
-        let userDetail: User | null = null;
-        if (!nikSnapshot.empty) {
-            userDetail = nikSnapshot.docs[0].data() as User;
-        } else if (!usernameSnapshot.empty) {
-            userDetail = usernameSnapshot.docs[0].data() as User;
-        }
-
-        // Step 2: Validate if user was found
-        if (!userDetail || !userDetail.nik) {
-             throw new Error("Pengguna tidak ditemukan atau data NIK tidak valid.");
-        }
-        
-        // Step 3: Use the NIK from the database to create the email and sign in
-        const email = createEmailFromNik(userDetail.nik);
+        // Assume the input is a NIK first for direct authentication
+        const email = createEmailFromNik(nikOrUsername);
         
         await signInWithEmailAndPassword(auth, email, password);
         
+        // If we reach here, login was successful. The AuthProvider will handle redirection.
+        // We can show a generic success message.
         toast({
             title: 'Login Berhasil',
-            description: `Selamat datang kembali, ${userDetail.username}.`,
+            description: `Selamat datang kembali. Mengarahkan ke dashboard...`,
         });
 
     } catch (error: any) {
@@ -75,6 +59,8 @@ export default function LoginPage() {
         let errorMessage = 'Terjadi kesalahan saat login.';
         if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
              errorMessage = 'Kombinasi NIK/Username dan Password salah.';
+        } else if (error.code === 'auth/user-not-found') {
+            errorMessage = 'Pengguna dengan NIK tersebut tidak ditemukan di sistem otentikasi.';
         } else if (error.message.includes("Pengguna tidak ditemukan")) {
             errorMessage = error.message;
         }
