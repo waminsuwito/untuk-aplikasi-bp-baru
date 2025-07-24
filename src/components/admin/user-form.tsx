@@ -13,7 +13,7 @@ import { type User, type Jabatan, jabatanOptions, userLocations } from '@/lib/ty
 
 const formSchema = z.object({
   username: z.string().min(3, { message: 'Username must be at least 3 characters long.' }),
-  password: z.string().min(1, { message: 'Password minimal 1 karakter.' }).optional().or(z.literal('')),
+  password: z.string().min(6, { message: 'Password minimal 6 karakter.' }).optional().or(z.literal('')),
   nik: z.string().min(1, { message: 'NIK is required.' }),
   jabatan: z.enum(jabatanOptions),
   location: z.enum(userLocations),

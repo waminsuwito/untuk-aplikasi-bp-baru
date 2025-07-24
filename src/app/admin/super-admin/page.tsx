@@ -45,7 +45,6 @@ export default function SuperAdminPage() {
   const handleSaveUser = async (data: UserFormValues, userId: string | null) => {
     const currentUsers = await getUsers();
     
-    // Check for NIK uniqueness only, as username can be the same
     const nikExists = currentUsers.some(
       (user) => user.nik === data.nik && user.id !== userId
     );
@@ -59,22 +58,33 @@ export default function SuperAdminPage() {
       return;
     }
     
-    if (userId) {
+    if (userId) { // Editing an existing user
       const userDataToUpdate: Partial<User> = {
         username: data.username,
         jabatan: data.jabatan as Jabatan,
         location: data.location,
         nik: data.nik,
       };
+
       if (data.password) {
-        // Password updates for existing users should be handled separately
-        // via a dedicated "change password" flow for security reasons.
-        // Here, we just log a warning if a password was entered for an existing user.
-        console.warn("Password change attempt during user edit ignored. Use a dedicated password change function.");
+        if (data.password.length < 6) {
+          toast({
+            variant: 'destructive',
+            title: 'Password Terlalu Pendek',
+            description: 'Password baru harus memiliki setidaknya 6 karakter.',
+          });
+          return;
+        }
+        // This is not secure for a production app. It allows an admin to change a password without knowing the old one.
+        // For this app's purpose, we allow it.
+        userDataToUpdate.password = data.password; 
+        console.warn(`Admin is changing password for user ${userId}.`);
       }
+
       await updateUser(userId, userDataToUpdate);
       toast({ title: 'User Updated', description: `User "${data.username}" has been updated.` });
-    } else {
+
+    } else { // Creating a new user
        if (!data.password) {
         toast({
           variant: 'destructive',

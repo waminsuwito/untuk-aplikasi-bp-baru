@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -63,16 +64,30 @@ export default function ManajemenKaryawanPage() {
         location: data.location,
         nik: data.nik,
       };
+      
+      // Handle password change for existing users
       if (data.password) {
-        toast({
-          variant: 'destructive',
-          title: 'Perubahan Password Ditolak',
-          description: `Gunakan fitur "Ubah Password" di menu dropdown untuk mengubah password.`,
-        });
+         if (data.password.length < 6) {
+          toast({
+            variant: 'destructive',
+            title: 'Password Terlalu Pendek',
+            description: 'Password baru harus memiliki setidaknya 6 karakter.',
+          });
+          return; // Stop execution
+        }
+        // NOTE: In a real app, you would have a separate, more secure flow for password changes.
+        // This implementation does not re-authenticate the admin before changing another user's password.
+        console.warn(`Password for user ${userId} will be changed. This is not recommended without re-authentication.`);
+        // The password will be passed along to be updated.
+        userDataToUpdate.password = data.password;
       }
+      
+      // In a real app, you would call a secure cloud function to update the user's password.
+      // For this project, we'll assume a direct update is allowed, though not ideal.
       await updateUser(userId, userDataToUpdate);
       toast({ title: 'User Updated', description: `User "${data.username}" has been updated.` });
-    } else {
+
+    } else { // Creating a new user
        if (!data.password) {
         toast({
           variant: 'destructive',

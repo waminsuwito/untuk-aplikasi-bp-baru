@@ -58,23 +58,29 @@ export default function SuperAdminPage() {
       return;
     }
     
-    if (userId) {
+    if (userId) { // Editing
       const userDataToUpdate: Partial<User> = {
         username: data.username,
         jabatan: data.jabatan as Jabatan,
         location: data.location,
         nik: data.nik,
       };
+
       if (data.password) {
-        toast({
-          variant: 'destructive',
-          title: 'Perubahan Password Ditolak',
-          description: `Gunakan fitur "Ubah Password" di menu dropdown untuk mengubah password.`,
-        });
+        if (data.password.length < 6) {
+          toast({
+            variant: 'destructive',
+            title: 'Password Terlalu Pendek',
+            description: 'Password baru harus memiliki setidaknya 6 karakter.',
+          });
+          return;
+        }
+        userDataToUpdate.password = data.password;
       }
       updateUser(userId, userDataToUpdate);
       toast({ title: 'User Updated', description: `User "${data.username}" has been updated.` });
-    } else {
+    
+    } else { // Creating
        if (!data.password) {
         toast({
           variant: 'destructive',
