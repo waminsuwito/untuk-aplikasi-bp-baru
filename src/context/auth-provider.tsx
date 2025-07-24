@@ -30,8 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
         try {
-          // Use 'superadmin-main' for the superadmin user, otherwise use uid
-          const userId = firebaseUser.email?.startsWith('superadmin@') ? 'superadmin-main' : firebaseUser.uid;
+          const isSuperAdminLogin = firebaseUser.email?.startsWith('superadmin@');
+          const userId = isSuperAdminLogin ? 'superadmin-main' : firebaseUser.uid;
+          
           const userDocRef = doc(firestore, 'users', userId);
           const userDoc = await getDoc(userDocRef);
 
@@ -39,6 +40,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const userData = userDoc.data() as User;
             const { password, ...userToSet } = userData;
             setUser(userToSet);
+          } else if (isSuperAdminLogin) {
+              // This case can happen if the auth user was created but firestore doc failed.
+              // We set the user based on defaults.
+              setUser({
+                  id: 'superadmin-main',
+                  username: 'SUPERADMIN',
+                  nik: 'SUPERADMIN',
+                  jabatan: 'SUPER ADMIN',
+                  location: 'BP PEKANBARU',
+              });
           } else {
             // This case might happen if Firestore doc is deleted but Auth user is not
             await signOut(auth);
@@ -81,14 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
 
   const login = useCallback(async (identifier: string, passwordFromInput: string): Promise<void> => {
-    // onAuthStateChanged in the first useEffect will handle setting the user state.
-    // The second useEffect will handle the redirect after the user state is updated.
     await loginWithIdentifier(identifier, passwordFromInput);
   }, []);
   
   const logout = useCallback(async () => {
     await signOut(auth);
-    // onAuthStateChanged will set user to null, and the redirect effect will run.
   }, []);
 
 
