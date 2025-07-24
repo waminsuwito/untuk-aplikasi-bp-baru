@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, createEmailFromNik, findUserByNikOrUsername } from '@/lib/auth';
+import { seedUsersToFirestore, createEmailFromNik } from '@/lib/auth';
 import Image from 'next/image';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -39,13 +39,13 @@ export default function LoginPage() {
     
     try {
         // This is a simplified login flow. It attempts a direct login.
-        // It assumes the NIK is used for the email, which is set during seeding.
+        // It assumes the NIK/Username is used for the email, which is set during seeding.
         // For production, a more robust lookup (e.g., via a backend function) is better.
         const email = createEmailFromNik(nikOrUsername.trim());
         
         await signInWithEmailAndPassword(auth, email, password);
         
-        // Toast is now handled by the AuthProvider upon successful state change.
+        // The AuthProvider will handle redirection upon successful state change.
         // No need to show a success toast here.
 
     } catch (error: any) {
@@ -56,6 +56,8 @@ export default function LoginPage() {
             errorMessage = 'Pengguna dengan NIK/Username tersebut tidak ditemukan.';
         } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
             errorMessage = 'Password yang Anda masukkan salah.';
+        } else if (error.code === 'auth/too-many-requests') {
+            errorMessage = 'Akses ke akun ini telah dinonaktifkan sementara karena terlalu banyak percobaan login yang gagal. Anda dapat memulihkannya dengan mereset password atau coba lagi nanti.'
         }
         
         toast({
