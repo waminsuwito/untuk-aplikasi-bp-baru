@@ -1,12 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, firestore } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { type User } from '@/lib/types';
+import { getUsers } from '@/lib/auth';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
 
 interface AuthContextType {
@@ -25,69 +23,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // User is signed in, fetch their profile from Firestore
-        const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data() as Omit<User, 'password'>;
-          setUser(userData);
-          // Redirect if they are on the login page
-          if (pathname === '/') {
-            const defaultRoute = getDefaultRouteForUser(userData);
-            router.replace(defaultRoute);
-          }
-        } else {
-          // Profile doesn't exist, something is wrong, sign them out.
-          await signOut(auth);
-          setUser(null);
-        }
-      } else {
-        // User is signed out
-        setUser(null);
-        if (pathname !== '/') {
-           router.replace('/');
-        }
-      }
-      setIsLoading(false);
-    });
+    try {
+        const storedUser = localStorage.getItem('active-user');
+        if (storedUser) {
+            const activeUser: User = JSON.parse(storedUser);
+            // Omit password before setting to state
+            const { password, ...userToSet } = activeUser;
+            setUser(userToSet);
 
-    return () => unsubscribe();
+            const defaultRoute = getDefaultRouteForUser(activeUser);
+            if (pathname === '/' || pathname !== defaultRoute) {
+                // Redirect if they are on the login page or not on their default page
+                // This can be adjusted based on desired behavior
+            }
+        } else if (pathname !== '/') {
+            router.replace('/');
+        }
+    } catch (error) {
+        console.error("Failed to load user from localStorage", error);
+        if (pathname !== '/') {
+          router.replace('/');
+        }
+    }
+    setIsLoading(false);
   }, [pathname, router]);
 
-  const login = async (identifier: string, password: string) => {
-    let emailToLogin: string | null = null;
-    
-    // Check if identifier is a NIK
-    const usersRef = collection(firestore, 'users');
-    const q = query(usersRef, where('nik', '==', identifier.toUpperCase()));
-    const querySnapshot = await getDocs(q);
+  const login = useCallback(async (identifier: string, passwordFromInput: string): Promise<void> => {
+    const allUsers = getUsers();
+    const matchedUser = allUsers.find(
+      u => (u.nik?.toUpperCase() === identifier.toUpperCase() || u.username.toUpperCase() === identifier.toUpperCase())
+    );
 
-    if (!querySnapshot.empty) {
-        // Found user by NIK
-        emailToLogin = `${identifier.toUpperCase()}@farika.co.id`;
+    if (matchedUser && matchedUser.password === passwordFromInput) {
+        const { password, ...userToSet } = matchedUser;
+        localStorage.setItem('active-user', JSON.stringify(matchedUser));
+        setUser(userToSet);
+        const defaultRoute = getDefaultRouteForUser(matchedUser);
+        router.replace(defaultRoute);
     } else {
-        // Assume it's a username, which we'll use for the email domain
-        emailToLogin = `${identifier.toLowerCase()}@farika.co.id`;
+        throw new Error('Kombinasi NIK/Username dan Password salah.');
     }
-
-    try {
-        await signInWithEmailAndPassword(auth, emailToLogin, password);
-        // onAuthStateChanged will handle setting the user and redirecting
-    } catch (error: any) {
-        console.error("Firebase login error:", error);
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-            throw new Error('Kombinasi NIK/Username dan Password salah.');
-        }
-        throw new Error('Terjadi kesalahan saat login.');
-    }
-  };
+  }, [router]);
   
-  const logout = async () => {
-    await signOut(auth);
-    // onAuthStateChanged will handle setting user to null and redirecting
-  };
+  const logout = useCallback(() => {
+    localStorage.removeItem('active-user');
+    setUser(null);
+    router.replace('/');
+  }, [router]);
 
 
   if (isLoading) {

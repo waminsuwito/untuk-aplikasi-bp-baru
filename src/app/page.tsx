@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
-import { seedUsersToFirestore } from '@/lib/auth';
 
 export default function LoginPage() {
   const { user, login, isLoading: isAuthLoading } = useAuth();
@@ -17,7 +16,6 @@ export default function LoginPage() {
   const [nikOrUsername, setNikOrUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +31,7 @@ export default function LoginPage() {
     
     try {
       await login(nikOrUsername, password);
-      // The redirect is handled by the AuthProvider's useEffect
+      // The redirect is handled by the AuthProvider
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -44,17 +42,6 @@ export default function LoginPage() {
       setIsLoggingIn(false);
     }
   };
-  
-  const handleSeed = async () => {
-    setIsSeeding(true);
-    const success = await seedUsersToFirestore();
-    if (success) {
-      toast({ title: "Inisialisasi Berhasil", description: "Database telah diinisialisasi dengan akun admin."});
-    } else {
-      toast({ variant: 'destructive', title: "Inisialisasi Gagal", description: "Tidak dapat menghubungi database."});
-    }
-    setIsSeeding(false);
-  }
 
   if (isAuthLoading || user) {
      return (
@@ -83,7 +70,7 @@ export default function LoginPage() {
                 required
                 value={nikOrUsername}
                 onChange={(e) => setNikOrUsername(e.target.value)}
-                disabled={isLoggingIn || isSeeding}
+                disabled={isLoggingIn}
                 autoComplete="username"
               />
             </div>
@@ -96,20 +83,16 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoggingIn || isSeeding}
+                disabled={isLoggingIn}
                 autoComplete="current-password"
               />
             </div>
           </CardContent>
           <CardFooter className="flex-col gap-4">
-            <Button type="submit" className="w-full" disabled={isLoggingIn || isSeeding}>
-              {(isLoggingIn) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" className="w-full" disabled={isLoggingIn}>
+              {isLoggingIn && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {!isLoggingIn && <LogIn className="mr-2 h-4 w-4" />}
               Login
-            </Button>
-             <Button type="button" variant="link" className="text-xs text-muted-foreground" onClick={handleSeed} disabled={isSeeding}>
-                {isSeeding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                (Jika login gagal, klik di sini untuk inisialisasi database)
             </Button>
           </CardFooter>
         </form>

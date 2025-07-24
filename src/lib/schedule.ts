@@ -4,7 +4,7 @@ import type { ScheduleSheetRow } from '@/lib/types';
 
 export const SCHEDULE_SHEET_STORAGE_KEY = 'app-schedule-sheet-data';
 
-export async function getScheduleSheetData(): Promise<ScheduleSheetRow[]> {
+export function getScheduleSheetData(): ScheduleSheetRow[] {
   try {
     const storedData = localStorage.getItem(SCHEDULE_SHEET_STORAGE_KEY);
     if (storedData) {
@@ -18,7 +18,7 @@ export async function getScheduleSheetData(): Promise<ScheduleSheetRow[]> {
   return []; // Return empty array if nothing is stored or on error
 }
 
-export async function saveScheduleSheetData(data: ScheduleSheetRow[]): Promise<void> {
+export function saveScheduleSheetData(data: ScheduleSheetRow[]): void {
   try {
     // Filter out rows that are completely empty before saving
     const nonEmptyData = data.filter(row => Object.values(row).some(val => val && String(val).trim() !== ''));
