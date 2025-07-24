@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -41,34 +40,24 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     
     try {
-        const allUsers = await getUsers();
-        const lowerCaseInput = nikOrUsername.toLowerCase();
+        // Simplified flow: Assume the input is the NIK and try to log in directly.
+        // This is the most robust way as it doesn't depend on Firestore being perfectly in sync for the login key.
+        const email = createEmailFromNik(nikOrUsername);
         
-        // Find user by either NIK or username
-        const userDetail = allUsers.find(u => 
-            (u.nik?.toLowerCase() === lowerCaseInput) || 
-            (u.username.toLowerCase() === lowerCaseInput)
-        );
-
-        if (userDetail && userDetail.nik) {
-            // ALWAYS use the NIK from the database to create the authentication email
-            const email = createEmailFromNik(userDetail.nik);
-            await signInWithEmailAndPassword(auth, email, password);
-            
-            // If successful, onAuthStateChanged in AuthProvider will handle redirection.
-            toast({
-                title: 'Login Berhasil',
-                description: `Selamat datang, ${userDetail.username}!`,
-            });
-        } else {
-            // If no user is found in Firestore, the credential is treated as invalid.
-            throw new Error('Invalid credentials');
-        }
+        await signInWithEmailAndPassword(auth, email, password);
+        
+        // If we reach here, login was successful. The AuthProvider will handle redirection.
+        // We can show a toast based on the input, as we don't know the real username yet.
+        toast({
+            title: 'Login Berhasil',
+            description: `Selamat datang kembali!`,
+        });
 
     } catch (error: any) {
         console.error("Login process error:", error);
         let description = 'Terjadi kesalahan saat mencoba login. Periksa koneksi Anda.';
-        if (error.message === 'Invalid credentials' || error.code === 'auth/invalid-credential') {
+        // The most common error will be invalid credentials.
+        if (error.code === 'auth/invalid-credential') {
             description = 'NIK/Username atau password yang Anda masukkan salah.';
         }
         
