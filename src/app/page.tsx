@@ -10,13 +10,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, createEmailFromNik, getUsers, getCurrentUserDetails } from '@/lib/auth';
+import { seedUsersToFirestore, createEmailFromNik } from '@/lib/auth';
 import Image from 'next/image';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth, firestore } from '@/lib/firebase';
-import type { User } from '@/lib/types';
-import { collection, query, where, getDocs, or } from 'firebase/firestore';
-
+import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -33,60 +30,32 @@ export default function LoginPage() {
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description: 'NIK/Username dan Password harus diisi.',
+            description: 'NIK dan Password harus diisi.',
         });
         return;
     }
     setIsLoggingIn(true);
     
     try {
-        const usersRef = collection(firestore, 'users');
-        // Query for a user where the NIK or the username matches the input
-        const q = query(usersRef, or(
-            where("nik", "==", nikOrUsername.toUpperCase()),
-            where("username", "==", nikOrUsername)
-        ));
-
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-             toast({
-                variant: 'destructive',
-                title: 'Login Gagal',
-                description: 'Pengguna tidak ditemukan. Periksa kembali NIK/Username Anda.',
-             });
-             setIsLoggingIn(false);
-             return;
-        }
-        
-        // Get the user detail from the first result
-        const userDetail = querySnapshot.docs[0].data();
-        
-        if (!userDetail.nik) {
-             toast({
-                variant: 'destructive',
-                title: 'Data Pengguna Tidak Lengkap',
-                description: 'Data NIK untuk pengguna ini tidak ada di database.',
-             });
-             setIsLoggingIn(false);
-             return;
-        }
-        
-        // Always use the NIK from the database to create the email for authentication
-        const email = createEmailFromNik(userDetail.nik);
+        // The most direct approach: Assume the input is a NIK and try to log in.
+        // This avoids all database lookups and potential data mismatches.
+        const email = createEmailFromNik(nikOrUsername);
         
         await signInWithEmailAndPassword(auth, email, password);
         
+        // If we reach here, login was successful. The AuthProvider will handle redirection.
+        // We can show a generic success message.
         toast({
             title: 'Login Berhasil',
-            description: `Selamat datang kembali, ${userDetail.username}.`,
+            description: `Selamat datang kembali.`,
         });
 
     } catch (error: any) {
         console.error("Login process error:", error);
-        let errorMessage = 'NIK/Username atau password yang Anda masukkan salah.';
-        if (error.code === 'auth/invalid-credential') {
-             errorMessage = 'Kredensial tidak valid atau password salah.';
+        
+        let errorMessage = 'NIK atau password yang Anda masukkan salah.';
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+             errorMessage = 'Kredensial tidak valid. Pastikan NIK dan password benar.';
         }
         
         toast({
@@ -132,11 +101,11 @@ export default function LoginPage() {
         <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
             <div className="space-y-2">
-                <Label htmlFor="nik">NIK / Username</Label>
+                <Label htmlFor="nik">NIK</Label>
                 <Input
                 id="nik"
                 type="text"
-                placeholder="Masukkan NIK atau Username Anda"
+                placeholder="Masukkan NIK Anda"
                 required
                 value={nikOrUsername}
                 onChange={(e) => setNikOrUsername(e.target.value)}
