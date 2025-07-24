@@ -10,10 +10,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, createEmailFromNik } from '@/lib/auth';
+import { seedUsersToFirestore, createEmailFromNik, getUsers } from '@/lib/auth';
 import Image from 'next/image';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, firestore } from '@/lib/firebase';
+import type { User } from '@/lib/types';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+
 
 export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -24,41 +27,71 @@ export default function LoginPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
 
-  // AuthProvider now handles all redirection logic.
-  // This page will only be rendered if user is not logged in.
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nikOrUsername.trim() || !password.trim()) {
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description: 'NIK dan Password harus diisi.',
+            description: 'NIK/Username dan Password harus diisi.',
         });
         return;
     }
     setIsLoggingIn(true);
     
     try {
-        // Simple, direct login attempt. Assume the input is the NIK.
-        // This avoids all the complex lookup logic that was failing.
-        const email = createEmailFromNik(nikOrUsername);
+        const usersRef = collection(firestore, 'users');
+        let userDetail: Omit<User, 'password'> | null = null;
+
+        // Query by NIK first
+        const nikQuery = query(usersRef, where("nik", "==", nikOrUsername.toUpperCase()));
+        const nikSnapshot = await getDocs(nikQuery);
+
+        if (!nikSnapshot.empty) {
+            userDetail = nikSnapshot.docs[0].data() as Omit<User, 'password'>;
+        } else {
+            // If not found by NIK, query by username (case-insensitive is hard on client, so we try a few common cases)
+            const usernameQuery = query(usersRef, where("username", "==", nikOrUsername));
+            const usernameSnapshot = await getDocs(usernameQuery);
+            if (!usernameSnapshot.empty) {
+                 userDetail = usernameSnapshot.docs[0].data() as Omit<User, 'password'>;
+            }
+        }
+        
+        if (!userDetail) {
+             toast({
+                variant: 'destructive',
+                title: 'Login Gagal',
+                description: 'Pengguna tidak ditemukan. Periksa kembali NIK/Username Anda.',
+             });
+             setIsLoggingIn(false);
+             return;
+        }
+
+        if (!userDetail.nik) {
+             toast({
+                variant: 'destructive',
+                title: 'Data Pengguna Tidak Lengkap',
+                description: 'Data NIK untuk pengguna ini tidak ada di database.',
+             });
+             setIsLoggingIn(false);
+             return;
+        }
+        
+        const email = createEmailFromNik(userDetail.nik);
         
         await signInWithEmailAndPassword(auth, email, password);
         
-        // If we reach here, login was successful. The AuthProvider will handle redirection.
         toast({
             title: 'Login Berhasil',
-            description: `Selamat datang kembali.`,
+            description: `Selamat datang kembali, ${userDetail.username}.`,
         });
 
     } catch (error: any) {
         console.error("Login process error:", error);
-        let errorMessage = 'NIK atau password yang Anda masukkan salah.';
+        let errorMessage = 'NIK/Username atau password yang Anda masukkan salah.';
         if (error.code === 'auth/invalid-credential') {
-             errorMessage = 'Kredensial tidak valid. Pastikan NIK dan password benar.';
-        } else if (error.code === 'auth/user-not-found') {
-             errorMessage = 'Pengguna dengan NIK ini tidak ditemukan di sistem otentikasi.';
+             errorMessage = 'Kredensial tidak valid atau password salah.';
         }
         
         toast({
@@ -104,11 +137,11 @@ export default function LoginPage() {
         <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
             <div className="space-y-2">
-                <Label htmlFor="nik">NIK</Label>
+                <Label htmlFor="nik">NIK / Username</Label>
                 <Input
                 id="nik"
                 type="text"
-                placeholder="Masukkan NIK Anda"
+                placeholder="Masukkan NIK atau Username Anda"
                 required
                 value={nikOrUsername}
                 onChange={(e) => setNikOrUsername(e.target.value)}
