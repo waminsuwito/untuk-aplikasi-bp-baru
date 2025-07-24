@@ -1,6 +1,8 @@
 
+'use client';
+
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { GitCompareArrows } from 'lucide-react';
+import { GitCompareArrows, Inbox } from 'lucide-react';
 
 export default function LaporanSinkronisasiPage() {
   return (
@@ -16,7 +18,9 @@ export default function LaporanSinkronisasiPage() {
       </CardHeader>
       <CardContent>
         <div className="text-center py-12 text-muted-foreground">
-          <p>Konten untuk laporan sinkronisasi akan ditampilkan di sini.</p>
+          <Inbox className="mx-auto h-12 w-12" />
+          <h3 className="mt-4 text-lg font-semibold">Fitur Dinonaktifkan</h3>
+          <p className="mt-1 text-sm">Fungsionalitas laporan sinkronisasi tidak tersedia saat ini.</p>
         </div>
       </CardContent>
     </Card>
