@@ -10,10 +10,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, createEmailFromNik } from '@/lib/auth';
+import { seedUsersToFirestore, createEmailFromNik, getUsers } from '@/lib/auth';
 import Image from 'next/image';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { type User } from '@/lib/types';
+
 
 export default function LoginPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -30,31 +32,47 @@ export default function LoginPage() {
         toast({
             variant: 'destructive',
             title: 'Login Gagal',
-            description: 'NIK dan Password harus diisi.',
+            description: 'NIK/Username dan Password harus diisi.',
         });
         return;
     }
     setIsLoggingIn(true);
     
     try {
-        // Simple, direct login flow. Assume the input is the NIK.
-        const email = createEmailFromNik(nikOrUsername);
+        const allUsers = await getUsers();
+        const inputLower = nikOrUsername.toLowerCase();
+        
+        // Find user by either NIK or username, case-insensitively
+        const userDetail = allUsers.find(u => 
+            (u.nik?.toLowerCase() === inputLower) || 
+            (u.username.toLowerCase() === inputLower)
+        );
+
+        if (!userDetail || !userDetail.nik) {
+             toast({
+                variant: 'destructive',
+                title: 'Login Gagal',
+                description: 'Pengguna tidak ditemukan di database. Pastikan NIK atau Username benar.',
+            });
+            setIsLoggingIn(false);
+            return;
+        }
+
+        const email = createEmailFromNik(userDetail.nik);
         
         await signInWithEmailAndPassword(auth, email, password);
         
-        // If we reach here, login was successful. The AuthProvider will handle redirection.
-        // We can show a generic success message.
         toast({
             title: 'Login Berhasil',
-            description: `Selamat datang kembali.`,
+            description: `Selamat datang kembali, ${userDetail.username}.`,
         });
 
     } catch (error: any) {
         console.error("Login process error:", error);
         
-        let errorMessage = 'NIK atau password yang Anda masukkan salah.';
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
-             errorMessage = 'Kredensial tidak valid. Pastikan NIK dan password benar.';
+        let errorMessage = 'Terjadi kesalahan saat login.';
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+             errorMessage = 'Password yang Anda masukkan salah.';
         }
         
         toast({
@@ -100,11 +118,11 @@ export default function LoginPage() {
         <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
             <div className="space-y-2">
-                <Label htmlFor="nik">NIK</Label>
+                <Label htmlFor="nik">NIK atau Username</Label>
                 <Input
                 id="nik"
                 type="text"
-                placeholder="Masukkan NIK Anda"
+                placeholder="Masukkan NIK atau Username Anda"
                 required
                 value={nikOrUsername}
                 onChange={(e) => setNikOrUsername(e.target.value)}
