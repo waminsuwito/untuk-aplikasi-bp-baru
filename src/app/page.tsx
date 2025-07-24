@@ -42,19 +42,20 @@ export default function LoginPage() {
     
     try {
         const usersRef = collection(firestore, 'users');
-        
-        // Query for NIK first
-        const nikQuery = query(usersRef, where("nik", "==", nikOrUsername.toUpperCase()), limit(1));
+        const searchInput = nikOrUsername.toUpperCase();
+
+        // Query by NIK first
+        const nikQuery = query(usersRef, where("nik", "==", searchInput), limit(1));
         let querySnapshot = await getDocs(nikQuery);
         
-        // If not found by NIK, query for username
+        // If not found by NIK, query by username
         if (querySnapshot.empty) {
-            const usernameQuery = query(usersRef, where("username", "==", nikOrUsername.toUpperCase()), limit(1));
+            const usernameQuery = query(usersRef, where("username", "==", searchInput), limit(1));
             querySnapshot = await getDocs(usernameQuery);
         }
 
         if (querySnapshot.empty) {
-             throw new Error("User not found");
+             throw new Error("User not found in database.");
         }
         
         const userDetail = querySnapshot.docs[0].data();
