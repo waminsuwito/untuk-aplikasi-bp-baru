@@ -41,39 +41,31 @@ export default function LoginPage() {
     setIsLoggingIn(true);
     
     try {
-        // Step 1: Try to sign in directly, assuming the input is a NIK.
-        // This is the fastest path and works if the NIK is entered correctly.
-        try {
-            const email = createEmailFromNik(nikOrUsername);
-            await signInWithEmailAndPassword(auth, email, password);
-            // If successful, onAuthStateChanged in AuthProvider will handle the redirect.
-            setIsLoggingIn(false);
-            return;
-        } catch (error) {
-            // This is expected if the user entered a username or a wrong NIK.
-            // We will proceed to the next step.
-            console.log("Direct NIK login failed, trying to find user by username...");
+        const usersRef = collection(firestore, 'users');
+        
+        // Query for NIK first
+        const nikQuery = query(usersRef, where("nik", "==", nikOrUsername.toUpperCase()), limit(1));
+        let querySnapshot = await getDocs(nikQuery);
+        
+        // If not found by NIK, query for username
+        if (querySnapshot.empty) {
+            const usernameQuery = query(usersRef, where("username", "==", nikOrUsername.toUpperCase()), limit(1));
+            querySnapshot = await getDocs(usernameQuery);
         }
 
-        // Step 2: If direct NIK login fails, query Firestore to find the user by username.
-        const usersRef = collection(firestore, 'users');
-        const q = query(usersRef, where("username", "==", nikOrUsername.toUpperCase()), limit(1));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-            const userDetail = querySnapshot.docs[0].data();
-            if (userDetail.nik) {
-                // Step 3: Try signing in with the NIK found in Firestore.
-                const email = createEmailFromNik(userDetail.nik);
-                await signInWithEmailAndPassword(auth, email, password);
-                // If successful, onAuthStateChanged will handle the rest.
-                setIsLoggingIn(false);
-                return;
-            }
+        if (querySnapshot.empty) {
+             throw new Error("User not found");
         }
         
-        // If all attempts fail, it's an invalid credential.
-        throw new Error("Invalid credential");
+        const userDetail = querySnapshot.docs[0].data();
+        if (!userDetail.nik) {
+            throw new Error("User data is incomplete (missing NIK)");
+        }
+        
+        const email = createEmailFromNik(userDetail.nik);
+        
+        await signInWithEmailAndPassword(auth, email, password);
+        // On success, the AuthProvider's onAuthStateChanged will handle redirection.
 
     } catch (error: any) {
         console.error("Login process error:", error);
