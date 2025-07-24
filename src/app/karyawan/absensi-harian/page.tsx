@@ -13,28 +13,17 @@ import type { AttendanceLocation, GlobalAttendanceRecord, UserLocation } from '@
 import { useAuth } from '@/context/auth-provider';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
-import { firestore } from '@/lib/firebase';
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
-
 
 const ATTENDANCE_LOCATIONS_KEY = 'app-attendance-locations';
+const GLOBAL_ATTENDANCE_KEY = 'app-global-attendance-records';
 const ATTENDANCE_RADIUS_METERS = 50000; // 50km for testing
 const TIME_ZONE = 'Asia/Jakarta'; // WIB
 
-const getPersonalAttendanceDocRef = (userId: string, location: UserLocation) => {
+const getPersonalAttendanceKey = (userId: string) => {
     const now = toZonedTime(new Date(), TIME_ZONE);
     const dateStr = format(now, 'yyyy-MM-dd');
-    const docId = `${userId}-${dateStr}`;
-    return doc(firestore, 'locations', location, 'attendance', docId);
+    return `attendance-${userId}-${dateStr}`;
 };
-
-const getGlobalAttendanceDocRef = (nik: string, location: UserLocation) => {
-    const now = toZonedTime(new Date(), TIME_ZONE);
-    const dateStr = format(now, 'yyyy-MM-dd');
-    const docId = `${nik}-${dateStr}`;
-    return doc(firestore, 'attendance-records', docId);
-}
-
 
 type PersonalAttendanceRecord = {
   clockIn?: string;
@@ -63,32 +52,28 @@ export default function AttendancePage() {
 
     // Effect to load initial data
     useEffect(() => {
-        const fetchInitialData = async () => {
-             try {
-                // This can still be from localStorage as it's a static configuration
-                const storedData = localStorage.getItem(ATTENDANCE_LOCATIONS_KEY);
-                if (storedData) {
-                    setLocations(JSON.parse(storedData));
+        try {
+            const storedData = localStorage.getItem(ATTENDANCE_LOCATIONS_KEY);
+            if (storedData) {
+                setLocations(JSON.parse(storedData));
+            }
+        } catch (error) {
+            console.error("Failed to load attendance locations from localStorage", error);
+        }
+
+        if (user) {
+            try {
+                const personalKey = getPersonalAttendanceKey(user.id);
+                const storedRecord = localStorage.getItem(personalKey);
+                if (storedRecord) {
+                    setPersonalAttendanceRecord(JSON.parse(storedRecord));
+                } else {
+                    setPersonalAttendanceRecord(null);
                 }
             } catch (error) {
-                console.error("Failed to load attendance locations from localStorage", error);
+                console.error("Failed to load today's attendance record", error);
             }
-
-            if (user && user.location) {
-                try {
-                    const personalDocRef = getPersonalAttendanceDocRef(user.id, user.location);
-                    const docSnap = await getDoc(personalDocRef);
-                    if (docSnap.exists()) {
-                       setPersonalAttendanceRecord(docSnap.data() as PersonalAttendanceRecord);
-                    } else {
-                       setPersonalAttendanceRecord(null);
-                    }
-                } catch (error) {
-                    console.error("Failed to load today's attendance record", error);
-                }
-            }
-        };
-        fetchInitialData();
+        }
     }, [user]);
 
     // Effect to determine the current possible action (clock-in/clock-out)
@@ -182,25 +167,23 @@ export default function AttendancePage() {
         return null;
     };
     
-    const updateGlobalAttendance = async (updateData: Partial<GlobalAttendanceRecord>) => {
-        if (!user || !user.nik || !user.location) return;
+    const updateGlobalAttendance = (updateData: Partial<GlobalAttendanceRecord>) => {
+        if (!user || !user.nik) return;
         try {
-            const docRef = getGlobalAttendanceDocRef(user.nik, user.location);
-            const docSnap = await getDoc(docRef);
+            const storedData = localStorage.getItem(GLOBAL_ATTENDANCE_KEY);
+            const allRecords: GlobalAttendanceRecord[] = storedData ? JSON.parse(storedData) : [];
+            const today = format(toZonedTime(new Date(), TIME_ZONE), 'yyyy-MM-dd');
+            const userRecordIndex = allRecords.findIndex(r => r.nik === user.nik && r.date === today);
 
-            if (docSnap.exists()) {
-                await setDoc(docRef, updateData, { merge: true });
+            if (userRecordIndex > -1) {
+                allRecords[userRecordIndex] = { ...allRecords[userRecordIndex], ...updateData };
             } else {
-                 const now = toZonedTime(new Date(), TIME_ZONE);
-                 const dateStr = format(now, 'yyyy-MM-dd');
-                 const docId = `${user.nik}-${dateStr}`;
-
                 const newRecord: GlobalAttendanceRecord = {
-                    id: docId,
+                    id: `${user.nik}-${today}`,
                     nik: user.nik,
                     nama: user.username,
-                    location: user.location,
-                    date: dateStr,
+                    location: user.location as UserLocation,
+                    date: today,
                     absenMasuk: null,
                     terlambat: null,
                     absenPulang: null,
@@ -209,8 +192,9 @@ export default function AttendancePage() {
                     photoPulang: null,
                     ...updateData,
                 };
-                await setDoc(docRef, newRecord);
+                allRecords.push(newRecord);
             }
+            localStorage.setItem(GLOBAL_ATTENDANCE_KEY, JSON.stringify(allRecords));
         } catch (error) {
             console.error("Failed to update global attendance", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Gagal menyimpan data absensi global.' });
@@ -262,11 +246,9 @@ export default function AttendancePage() {
 
                 const newPersonalRecord: PersonalAttendanceRecord = { clockIn: now.toISOString(), isLate };
                 setPersonalAttendanceRecord(newPersonalRecord);
-                
-                const personalDocRef = getPersonalAttendanceDocRef(user.id, user.location);
-                await setDoc(personalDocRef, newPersonalRecord);
+                localStorage.setItem(getPersonalAttendanceKey(user.id), JSON.stringify(newPersonalRecord));
 
-                await updateGlobalAttendance({
+                updateGlobalAttendance({
                     absenMasuk: now.toISOString(),
                     terlambat: terlambatDuration,
                     photoMasuk: photoDataUri,
@@ -280,11 +262,9 @@ export default function AttendancePage() {
             } else if (currentAction === 'clockOut') {
                 const updatedPersonalRecord = { ...personalAttendanceRecord, clockOut: now.toISOString() };
                 setPersonalAttendanceRecord(updatedPersonalRecord as PersonalAttendanceRecord);
+                localStorage.setItem(getPersonalAttendanceKey(user.id), JSON.stringify(updatedPersonalRecord as PersonalAttendanceRecord));
                 
-                const personalDocRef = getPersonalAttendanceDocRef(user.id, user.location);
-                await setDoc(personalDocRef, { clockOut: now.toISOString() }, { merge: true });
-                
-                await updateGlobalAttendance({ absenPulang: now.toISOString(), photoPulang: photoDataUri });
+                updateGlobalAttendance({ absenPulang: now.toISOString(), photoPulang: photoDataUri });
 
                 toast({ title: 'Absensi Pulang Berhasil', description: 'Absensi pulang berhasil dicatat.' });
                 setAttendanceStatus('success');

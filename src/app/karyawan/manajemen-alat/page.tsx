@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
@@ -16,9 +17,6 @@ import { getUsers } from '@/lib/auth';
 import { format } from 'date-fns';
 import { useAuth } from '@/context/auth-provider';
 import type { User } from '@/lib/types';
-import { firestore } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
-
 
 interface ProcessedVehicle extends Vehicle {
     operator?: {
@@ -33,6 +31,12 @@ interface DialogInfo {
   vehicles?: ProcessedVehicle[];
   users?: User[];
 }
+
+const TM_CHECKLIST_COLLECTION_KEY = 'tm-checklists';
+const LOADER_CHECKLIST_COLLECTION_KEY = 'loader-checklists';
+const VEHICLES_STORAGE_KEY_PREFIX = 'app-vehicles-';
+const ASSIGNMENTS_STORAGE_KEY_PREFIX = 'app-assignments-';
+
 
 const StatCard = ({ title, value, description, icon: Icon, onClick, clickable, colorClass, asLink, href }: { title: string; value: string | number; description: string; icon: React.ElementType, onClick?: () => void, clickable?: boolean, colorClass?: string, asLink?: boolean, href?: string }) => {
     const cardContent = (
@@ -68,27 +72,32 @@ export default function ManajemenAlatPage() {
     if (!user?.location) return;
 
     try {
-        const vehiclesRef = collection(firestore, `locations/${user.location}/vehicles`);
-        const vehiclesSnapshot = await getDocs(vehiclesRef);
-        const vehicles = vehiclesSnapshot.docs.map(doc => doc.data() as Vehicle);
+        const getVehiclesForLocation = (location: UserLocation): Vehicle[] => {
+            const key = `${VEHICLES_STORAGE_KEY_PREFIX}${location}`;
+            const stored = localStorage.getItem(key);
+            return stored ? JSON.parse(stored) : [];
+        };
+        const vehicles = getVehiclesForLocation(user.location);
         setAllVehicles(vehicles);
 
         const users = await getUsers(); 
         const filteredUsers = users.map(({ password, ...rest }) => rest);
         setAllUsers(filteredUsers);
         
-        const assignmentsRef = collection(firestore, `locations/${user.location}/assignments`);
-        const assignmentsSnapshot = await getDocs(assignmentsRef);
-        const fetchedAssignments = assignmentsSnapshot.docs.map(doc => doc.data() as Assignment);
+        const getAssignmentsForLocation = (location: UserLocation): Assignment[] => {
+            const key = `${ASSIGNMENTS_STORAGE_KEY_PREFIX}${location}`;
+            const stored = localStorage.getItem(key);
+            return stored ? JSON.parse(stored) : [];
+        };
+        const fetchedAssignments = getAssignmentsForLocation(user.location);
         setAssignments(fetchedAssignments);
 
-        const tmChecklistsRef = collection(firestore, 'tm-checklists');
-        const loaderChecklistsRef = collection(firestore, 'loader-checklists');
+        const storedTmReports = localStorage.getItem(TM_CHECKLIST_COLLECTION_KEY);
+        const tmReports: TruckChecklistReport[] = storedTmReports ? JSON.parse(storedTmReports) : [];
+        const storedLoaderReports = localStorage.getItem(LOADER_CHECKLIST_COLLECTION_KEY);
+        const loaderReports: TruckChecklistReport[] = storedLoaderReports ? JSON.parse(storedLoaderReports) : [];
 
-        const [tmSnapshot, loaderSnapshot] = await Promise.all([getDocs(tmChecklistsRef), getDocs(loaderChecklistsRef)]);
-
-        const allReports = [...tmSnapshot.docs.map(doc => doc.data() as TruckChecklistReport), ...loaderSnapshot.docs.map(doc => doc.data() as TruckChecklistReport)];
-        
+        const allReports = [...tmReports, ...loaderReports];
         const relevantReports = allReports.filter(r => r.location === user.location);
         setChecklistReports(relevantReports);
 
@@ -99,6 +108,8 @@ export default function ManajemenAlatPage() {
 
   useEffect(() => {
     loadData();
+    window.addEventListener('storage', loadData);
+    return () => window.removeEventListener('storage', loadData);
   }, [loadData]);
   
  const processedVehicles = useMemo((): ProcessedVehicle[] => {
@@ -106,7 +117,6 @@ export default function ManajemenAlatPage() {
 
     const userMap = new Map(allUsers.map(u => [u.id, u]));
 
-    // 1. Find the latest checklist report for each user
     const latestChecklistByUserNik: { [nik: string]: TruckChecklistReport } = {};
     checklistReports.forEach(report => {
         if (!latestChecklistByUserNik[report.userNik] || new Date(report.timestamp) > new Date(latestChecklistByUserNik[report.userNik].timestamp)) {
@@ -122,7 +132,6 @@ export default function ManajemenAlatPage() {
         let finalStatus = vehicle.status;
         let lastChecklistStatus: ProcessedVehicle['lastChecklistStatus'] = null;
 
-        // 2. Determine checklist status based on the assigned user's latest report
         if (operator?.nik && latestChecklistByUserNik[operator.nik]) {
             const checklist = latestChecklistByUserNik[operator.nik];
             const hasDamage = checklist.items.some(item => item.status === 'rusak');
@@ -133,9 +142,8 @@ export default function ManajemenAlatPage() {
             else lastChecklistStatus = 'BAIK';
         }
 
-        // 3. Priority-based status determination
         if (finalStatus === 'RUSAK BERAT') {
-            // Highest priority, manual override
+            // Highest priority
         } else if (lastChecklistStatus === 'RUSAK') {
             finalStatus = 'RUSAK';
         } else if (lastChecklistStatus === 'PERLU PERHATIAN') {
@@ -143,7 +151,6 @@ export default function ManajemenAlatPage() {
         } else if (!operator) {
             finalStatus = 'BELUM ADA SOPIR';
         } else {
-            // Operator assigned, no damage reported
             finalStatus = 'BAIK';
         }
 

@@ -15,11 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { printElement } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { firestore } from '@/lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
 
-
-const ACTIVITIES_COLLECTION = 'daily-activity-reports';
+const GLOBAL_ACTIVITIES_KEY = 'app-daily-activities';
 
 export default function KegiatanKaryawanHariIniPage() {
   const { user } = useAuth();
@@ -35,31 +32,26 @@ export default function KegiatanKaryawanHariIniPage() {
   });
 
   useEffect(() => {
-    if (!user) return;
-
-    const fetchReports = async () => {
+    const fetchReports = () => {
+        if (!user) return;
         try {
             const today = format(new Date(), 'yyyy-MM-dd');
-            const reportsRef = collection(firestore, ACTIVITIES_COLLECTION);
+            const storedData = localStorage.getItem(GLOBAL_ACTIVITIES_KEY);
+            const allReports: DailyActivityReport[] = storedData ? JSON.parse(storedData) : [];
             
-            const q = query(
-                reportsRef, 
-                where('date', '==', today), 
-                where('location', '==', user.location)
+            const fetchedReports = allReports.filter(report => 
+                report.date === today && report.location === user.location
             );
-            
-            const querySnapshot = await getDocs(q);
-            const fetchedReports: DailyActivityReport[] = [];
-            querySnapshot.forEach((doc) => {
-                fetchedReports.push(doc.data() as DailyActivityReport);
-            });
+
             setReports(fetchedReports);
         } catch (error) {
-          console.error("Failed to load activity data from Firestore", error);
+          console.error("Failed to load activity data from localStorage", error);
         }
     }
 
     fetchReports();
+    window.addEventListener('storage', fetchReports);
+    return () => window.removeEventListener('storage', fetchReports);
 
   }, [user]);
 
@@ -153,7 +145,7 @@ export default function KegiatanKaryawanHariIniPage() {
                 <div className="no-print">
                     <Accordion type="multiple" className="w-full">
                     {filteredReports.map((report) => (
-                        <AccordionItem key={report.userId} value={report.userId}>
+                        <AccordionItem key={report.id} value={report.id}>
                         <AccordionTrigger>
                             <div className="flex items-center gap-3">
                             <User className="h-5 w-5 text-muted-foreground" />
@@ -196,7 +188,7 @@ export default function KegiatanKaryawanHariIniPage() {
                     </TableHeader>
                     <TableBody>
                     {filteredReports.map((report, index) => (
-                        <TableRow key={report.userId}>
+                        <TableRow key={report.id}>
                         <TableCell className="text-center px-2 py-1 border">{index + 1}</TableCell>
                         <TableCell className="px-2 py-1 border">{report.username}</TableCell>
                         <TableCell className="px-2 py-1 border">{report.nik}</TableCell>

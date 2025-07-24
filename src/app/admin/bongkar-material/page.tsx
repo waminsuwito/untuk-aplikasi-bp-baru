@@ -43,11 +43,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import type { BongkarMaterial, BongkarStatus, UserLocation } from '@/lib/types';
 import { useAuth } from '@/context/auth-provider';
-import { firestore } from '@/lib/firebase';
-import { collection, doc, setDoc, onSnapshot, deleteDoc, query, where } from 'firebase/firestore';
 
-
-const BONGKAR_MATERIAL_COLLECTION = 'unloading-activities';
+const BONGKAR_MATERIAL_COLLECTION_KEY = 'unloading-activities';
 const materialOptions = ["Batu", "Pasir", "Semen", "Obat Beton"];
 
 const initialFormState = {
@@ -63,27 +60,30 @@ export default function BongkarMaterialPage() {
   const [daftarBongkar, setDaftarBongkar] = useState<BongkarMaterial[]>([]);
   const [formState, setFormState] = useState(initialFormState);
 
-  useEffect(() => {
+  const loadData = () => {
     if (!user || !user.location) return;
 
-    const q = query(
-      collection(firestore, BONGKAR_MATERIAL_COLLECTION),
-      where('location', '==', user.location)
-    );
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const data: BongkarMaterial[] = [];
-        querySnapshot.forEach((doc) => {
-            data.push(doc.data() as BongkarMaterial);
-        });
-        data.sort((a, b) => new Date(b.id).getTime() - new Date(a.id).getTime());
-        setDaftarBongkar(data);
-    }, (error) => {
-        console.error("Error fetching unloading activities:", error);
-    });
+    try {
+        const storedData = localStorage.getItem(BONGKAR_MATERIAL_COLLECTION_KEY);
+        const allActivities: BongkarMaterial[] = storedData ? JSON.parse(storedData) : [];
+        const locationActivities = allActivities.filter(item => item.location === user.location);
+        locationActivities.sort((a, b) => new Date(b.id).getTime() - new Date(a.id).getTime());
+        setDaftarBongkar(locationActivities);
+    } catch (error) {
+        console.error("Error fetching unloading activities from localStorage:", error);
+    }
+  }
 
-    return () => unsubscribe();
+  useEffect(() => {
+    loadData();
+    window.addEventListener('storage', loadData);
+    return () => window.removeEventListener('storage', loadData);
   }, [user]);
+
+  const updateAllActivities = (updatedActivities: BongkarMaterial[]) => {
+      localStorage.setItem(BONGKAR_MATERIAL_COLLECTION_KEY, JSON.stringify(updatedActivities));
+      loadData();
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -135,16 +135,20 @@ export default function BongkarMaterialPage() {
     };
     
     try {
-        await setDoc(doc(firestore, BONGKAR_MATERIAL_COLLECTION, id), newItem);
+        const storedData = localStorage.getItem(BONGKAR_MATERIAL_COLLECTION_KEY);
+        const allActivities: BongkarMaterial[] = storedData ? JSON.parse(storedData) : [];
+        updateAllActivities([...allActivities, newItem]);
         setFormState(initialFormState); // Reset form
     } catch(error) {
         console.error("Failed to add unloading activity:", error);
     }
   };
 
-  const updateFirestoreDoc = async (id: string, updateData: Partial<BongkarMaterial>) => {
-    const docRef = doc(firestore, BONGKAR_MATERIAL_COLLECTION, id);
-    await setDoc(docRef, updateData, { merge: true });
+  const updateFirestoreDoc = (id: string, updateData: Partial<BongkarMaterial>) => {
+    const storedData = localStorage.getItem(BONGKAR_MATERIAL_COLLECTION_KEY);
+    const allActivities: BongkarMaterial[] = storedData ? JSON.parse(storedData) : [];
+    const updatedActivities = allActivities.map(item => item.id === id ? { ...item, ...updateData } : item);
+    updateAllActivities(updatedActivities);
   }
 
   const handleMulaiProses = (id: string) => {
@@ -210,8 +214,11 @@ export default function BongkarMaterialPage() {
     }
   };
 
-  const handleDeleteItem = async (id: string) => {
-    await deleteDoc(doc(firestore, BONGKAR_MATERIAL_COLLECTION, id));
+  const handleDeleteItem = (id: string) => {
+    const storedData = localStorage.getItem(BONGKAR_MATERIAL_COLLECTION_KEY);
+    const allActivities: BongkarMaterial[] = storedData ? JSON.parse(storedData) : [];
+    const updatedActivities = allActivities.filter(item => item.id !== id);
+    updateAllActivities(updatedActivities);
   };
 
   const calculatePerformance = (item: BongkarMaterial) => {

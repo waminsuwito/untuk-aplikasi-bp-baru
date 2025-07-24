@@ -18,9 +18,8 @@ import { printElement } from '@/lib/utils';
 import type { User, GlobalAttendanceRecord } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/auth-provider';
-import { firestore } from '@/lib/firebase';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 
+const GLOBAL_ATTENDANCE_KEY = 'app-global-attendance-records';
 
 interface DisplayRecord {
   key: string;
@@ -46,42 +45,23 @@ export default function RangkumanAbsensiKaryawanPage() {
   });
   
   useEffect(() => {
-    async function fetchData() {
+    function fetchData() {
         try {
-            const users = await getUsers();
+            const users = getUsers();
             const filteredKaryawan = users.filter(u => 
-                u.role === 'karyawan' && 
+                u.jabatan?.includes('SOPIR') || u.jabatan?.includes('OPRATOR') || u.jabatan?.includes('HELPER') && 
                 (adminUser?.role === 'super_admin' || u.location === adminUser?.location)
             );
             setAllKaryawan(filteredKaryawan);
+
+            const storedData = localStorage.getItem(GLOBAL_ATTENDANCE_KEY);
+            setAllAttendance(storedData ? JSON.parse(storedData) : []);
         } catch (error) {
-            console.error("Failed to load users:", error);
+            console.error("Failed to load data:", error);
         }
     }
     fetchData();
   }, [adminUser]);
-
-  useEffect(() => {
-    async function fetchAttendance() {
-        if (!date?.from) return;
-
-        const attendanceCollectionRef = collection(firestore, 'attendance-records');
-        const q = query(
-            attendanceCollectionRef, 
-            where('date', '>=', format(date.from, 'yyyy-MM-dd')),
-            where('date', '<=', format(date.to || date.from, 'yyyy-MM-dd'))
-        );
-
-        const querySnapshot = await getDocs(q);
-        const records: GlobalAttendanceRecord[] = [];
-        querySnapshot.forEach((doc) => {
-            records.push(doc.data() as GlobalAttendanceRecord);
-        });
-        setAllAttendance(records);
-    }
-    fetchAttendance();
-  }, [date]);
-
 
   const generatedRecords = useMemo(() => {
     const records: DisplayRecord[] = [];

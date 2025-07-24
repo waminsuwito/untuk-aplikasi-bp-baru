@@ -22,13 +22,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { getUsers } from '@/lib/auth';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
-import { firestore } from '@/lib/firebase';
-import { collection, doc, getDocs, setDoc, updateDoc, onSnapshot, query, where, writeBatch } from 'firebase/firestore';
 
 
-const TM_CHECKLIST_COLLECTION = 'tm-checklists';
-const LOADER_CHECKLIST_COLLECTION = 'loader-checklists';
-const WORK_ORDER_COLLECTION = 'work-orders';
+const TM_CHECKLIST_COLLECTION_KEY = 'tm-checklists';
+const LOADER_CHECKLIST_COLLECTION_KEY = 'loader-checklists';
+const WORK_ORDER_COLLECTION_KEY = 'work-orders';
 
 interface DamagedVehicle {
   reportId: string;
@@ -97,75 +95,61 @@ export default function WorkOrderPage() {
   const loadData = useCallback(() => {
     if (!user) return;
     
-    // Listen to Work Orders in real-time
-    const woQuery = query(collection(firestore, WORK_ORDER_COLLECTION), where("vehicle.location", "==", user.location));
-    const unsubscribeWO = onSnapshot(woQuery, (snapshot) => {
-        const allWorkOrders = snapshot.docs.map(doc => doc.data() as WorkOrder);
-        
-        const myCurrentWOs = allWorkOrders.filter(wo => {
-            const isAssigned = Array.isArray(wo.assignedMechanics) && wo.assignedMechanics.some(m => m.id === user.id);
-            if (!isAssigned) return false;
-            
-            if (wo.status !== 'Selesai') return true;
-
-            if (wo.status === 'Selesai' && wo.completionTime) {
-                const todayStr = format(new Date(), 'yyyy-MM-dd');
-                const completionDateStr = format(new Date(wo.completionTime), 'yyyy-MM-dd');
-                return completionDateStr === todayStr;
-            }
-
-            return false;
-        }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-        setMyWorkOrders(myCurrentWOs);
-
-        // Update available damaged vehicles based on active WOs
-        updateAvailableDamagedVehicles(allWorkOrders);
-    });
-
-    const updateAvailableDamagedVehicles = async (allWorkOrders: WorkOrder[]) => {
-      const [tmSnapshot, loaderSnapshot] = await Promise.all([
-        getDocs(collection(firestore, TM_CHECKLIST_COLLECTION)),
-        getDocs(collection(firestore, LOADER_CHECKLIST_COLLECTION)),
-      ]);
-
-      const allChecklists = [...tmSnapshot.docs.map(d => d.data() as TruckChecklistReport), ...loaderSnapshot.docs.map(d => d.data() as TruckChecklistReport)];
-      const activeWorkOrderReportIds = new Set(allWorkOrders.filter(wo => wo.status !== 'Selesai').map(wo => wo.vehicle.reportId));
-
-      const availableDamaged: DamagedVehicle[] = allChecklists
-        .map(report => {
-          const damagedItems = report.items.filter(item => item.status === 'rusak' || item.status === 'perlu_perhatian');
-          if (damagedItems.length > 0) {
-            return {
-              reportId: report.id,
-              userId: report.userId,
-              userNik: report.userNik,
-              username: report.username,
-              location: report.location,
-              timestamp: report.timestamp,
-              damagedItems: damagedItems,
-            };
-          }
-          return null;
-        })
-        .filter((v): v is DamagedVehicle => v !== null && !activeWorkOrderReportIds.has(v.reportId))
-        .sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.startTime).getTime());
-        
-      setDamagedVehicles(availableDamaged);
-    }
+    const storedWorkOrders = localStorage.getItem(WORK_ORDER_COLLECTION_KEY);
+    const allWorkOrders: WorkOrder[] = storedWorkOrders ? JSON.parse(storedWorkOrders) : [];
     
-    // Initial load for damaged vehicles
-    getDocs(query(collection(firestore, WORK_ORDER_COLLECTION), where("vehicle.location", "==", user.location)))
-      .then(snapshot => updateAvailableDamagedVehicles(snapshot.docs.map(doc => doc.data() as WorkOrder)));
+    const myCurrentWOs = allWorkOrders.filter(wo => {
+        const isAssigned = Array.isArray(wo.assignedMechanics) && wo.assignedMechanics.some(m => m.id === user.id);
+        if (!isAssigned) return false;
+        
+        if (wo.status !== 'Selesai') return true;
 
+        if (wo.status === 'Selesai' && wo.completionTime) {
+            const todayStr = format(new Date(), 'yyyy-MM-dd');
+            const completionDateStr = format(new Date(wo.completionTime), 'yyyy-MM-dd');
+            return completionDateStr === todayStr;
+        }
 
-    return () => {
-      unsubscribeWO();
-    };
+        return false;
+    }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+    setMyWorkOrders(myCurrentWOs);
+
+    // Update available damaged vehicles based on active WOs
+    const storedTmChecklists = localStorage.getItem(TM_CHECKLIST_COLLECTION_KEY);
+    const tmChecklists: TruckChecklistReport[] = storedTmChecklists ? JSON.parse(storedTmChecklists) : [];
+    const storedLoaderChecklists = localStorage.getItem(LOADER_CHECKLIST_COLLECTION_KEY);
+    const loaderChecklists: TruckChecklistReport[] = storedLoaderChecklists ? JSON.parse(storedLoaderChecklists) : [];
+    const allChecklists = [...tmChecklists, ...loaderChecklists];
+
+    const activeWorkOrderReportIds = new Set(allWorkOrders.filter(wo => wo.status !== 'Selesai').map(wo => wo.vehicle.reportId));
+
+    const availableDamaged: DamagedVehicle[] = allChecklists
+      .map(report => {
+        const damagedItems = report.items.filter(item => item.status === 'rusak' || item.status === 'perlu_perhatian');
+        if (damagedItems.length > 0) {
+          return {
+            reportId: report.id,
+            userId: report.userId,
+            userNik: report.userNik,
+            username: report.username,
+            location: report.location,
+            timestamp: report.timestamp,
+            damagedItems: damagedItems,
+          };
+        }
+        return null;
+      })
+      .filter((v): v is DamagedVehicle => v !== null && !activeWorkOrderReportIds.has(v.reportId))
+      .sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      
+    setDamagedVehicles(availableDamaged);
 
   }, [user]);
 
   useEffect(() => {
     loadData();
+    window.addEventListener('storage', loadData);
+    return () => window.removeEventListener('storage', loadData);
   }, [loadData]);
 
 
@@ -212,6 +196,19 @@ export default function WorkOrderPage() {
     setAssignDialogVisible(true);
   };
 
+  const updateWorkOrderInStorage = (updatedWO: WorkOrder) => {
+    const storedWorkOrders = localStorage.getItem(WORK_ORDER_COLLECTION_KEY);
+    let allWorkOrders: WorkOrder[] = storedWorkOrders ? JSON.parse(storedWorkOrders) : [];
+    const woIndex = allWorkOrders.findIndex(wo => wo.id === updatedWO.id);
+    if (woIndex > -1) {
+        allWorkOrders[woIndex] = updatedWO;
+    } else {
+        allWorkOrders.push(updatedWO);
+    }
+    localStorage.setItem(WORK_ORDER_COLLECTION_KEY, JSON.stringify(allWorkOrders));
+    loadData();
+  };
+
   const handleConfirmAssignment = async () => {
     if (!selectedVehicleId || !user) return;
     
@@ -243,8 +240,7 @@ export default function WorkOrderPage() {
     };
     
     try {
-        const docRef = doc(firestore, WORK_ORDER_COLLECTION, workOrderId);
-        await setDoc(docRef, newWorkOrder);
+        updateWorkOrderInStorage(newWorkOrder);
         toast({ title: 'Work Order Dibuat', description: `Telah dibuat WO untuk kendaraan NIK ${vehicleToRepair.userNik}` });
         
         setAssignDialogVisible(false);
@@ -255,38 +251,49 @@ export default function WorkOrderPage() {
     }
   };
   
-  const clearVehicleDamageStatus = async (reportId: string) => {
-      const checklistType = reportId.startsWith('tm-checklist-') ? TM_CHECKLIST_COLLECTION : LOADER_CHECKLIST_COLLECTION;
-      const docRef = doc(firestore, checklistType, reportId);
-      const docSnap = await getDoc(docRef);
+  const clearVehicleDamageStatus = (reportId: string) => {
+      const isTm = reportId.startsWith('tm-checklist-');
+      const key = isTm ? TM_CHECKLIST_COLLECTION_KEY : LOADER_CHECKLIST_COLLECTION_KEY;
 
-      if (docSnap.exists()) {
-          const report = docSnap.data() as TruckChecklistReport;
+      const storedChecklists = localStorage.getItem(key);
+      let allChecklists: TruckChecklistReport[] = storedChecklists ? JSON.parse(storedChecklists) : [];
+      const reportIndex = allChecklists.findIndex(r => r.id === reportId);
+
+      if (reportIndex > -1) {
+          const report = allChecklists[reportIndex];
           const repairedItems = report.items.map(item => ({
               ...item,
               status: 'baik' as 'baik',
               notes: '',
               photo: null,
           }));
-          await updateDoc(docRef, { items: repairedItems });
+          allChecklists[reportIndex] = { ...report, items: repairedItems };
+          localStorage.setItem(key, JSON.stringify(allChecklists));
       }
   };
 
-  const saveActualDamages = async (workOrderId: string, text: string) => {
-    const docRef = doc(firestore, WORK_ORDER_COLLECTION, workOrderId);
-    await updateDoc(docRef, { actualDamagesNotes: text.toUpperCase() });
-    toast({ title: 'Catatan disimpan', description: 'Catatan kerusakan aktual telah diperbarui.' });
+  const handleActualDamagesChange = (workOrderId: string, text: string) => {
+    setMyWorkOrders(prev => prev.map(wo => wo.id === workOrderId ? { ...wo, actualDamagesNotes: text.toUpperCase() } : wo));
+  }
+  
+  const saveActualDamages = (workOrderId: string, text: string) => {
+    const woToUpdate = myWorkOrders.find(wo => wo.id === workOrderId);
+    if (woToUpdate) {
+        updateWorkOrderInStorage(woToUpdate);
+        toast({ title: 'Catatan disimpan', description: 'Catatan kerusakan aktual telah diperbarui.' });
+    }
   };
   
   const handleConfirmTargetTime = async () => {
     if (!workOrderToProcess) return;
 
-    const docRef = doc(firestore, WORK_ORDER_COLLECTION, workOrderToProcess.id);
-    await updateDoc(docRef, {
-        status: 'Proses' as const,
-        processStartTime: new Date().toISOString(),
-        targetCompletionTime: new Date(targetTime).toISOString()
-    });
+    const updatedWO = {
+      ...workOrderToProcess,
+      status: 'Proses' as const,
+      processStartTime: new Date().toISOString(),
+      targetCompletionTime: new Date(targetTime).toISOString()
+    };
+    updateWorkOrderInStorage(updatedWO);
 
     toast({ title: 'Status Diperbarui', description: `Work Order telah diperbarui menjadi "Proses".` });
     setTargetDialogVisible(false);
@@ -299,12 +306,13 @@ export default function WorkOrderPage() {
         return;
     }
 
-    const docRef = doc(firestore, WORK_ORDER_COLLECTION, workOrderToPostpone.id);
-    await updateDoc(docRef, {
+    const updatedWO = {
+        ...workOrderToPostpone,
         status: 'Tunda' as const,
         waktuMulaiTunda: new Date().toISOString(),
         notes: `DITUNDA: ${postponeReason.toUpperCase()}`
-    });
+    };
+    updateWorkOrderInStorage(updatedWO);
 
     toast({ title: 'Status Diperbarui', description: 'Work Order telah ditunda.' });
     setPostponeDialogVisible(false);
@@ -331,15 +339,15 @@ export default function WorkOrderPage() {
         return;
     }
 
-    const docRef = doc(firestore, WORK_ORDER_COLLECTION, workOrder.id);
-    let updatePayload: Partial<WorkOrder> = {};
+    let updatedWO = { ...workOrder };
 
     if (status === 'Lanjutkan') {
-        if (workOrder.status === 'Tunda' && workOrder.waktuMulaiTunda && workOrder.targetCompletionTime) {
-            const waktuJedaMs = new Date().getTime() - new Date(workOrder.waktuMulaiTunda).getTime();
-            const totalJedaBaru = (workOrder.totalWaktuTundaMs || 0) + waktuJedaMs;
-            const targetBaru = addMilliseconds(new Date(workOrder.targetCompletionTime), waktuJedaMs);
-            updatePayload = {
+        if (updatedWO.status === 'Tunda' && updatedWO.waktuMulaiTunda && updatedWO.targetCompletionTime) {
+            const waktuJedaMs = new Date().getTime() - new Date(updatedWO.waktuMulaiTunda).getTime();
+            const totalJedaBaru = (updatedWO.totalWaktuTundaMs || 0) + waktuJedaMs;
+            const targetBaru = addMilliseconds(new Date(updatedWO.targetCompletionTime), waktuJedaMs);
+            updatedWO = {
+                ...updatedWO,
                 status: 'Proses',
                 notes: `Pekerjaan dilanjutkan. Total jeda: ${formatDistanceStrict(totalJedaBaru, 0, { locale: localeID })}.`,
                 waktuMulaiTunda: null,
@@ -347,12 +355,12 @@ export default function WorkOrderPage() {
                 targetCompletionTime: targetBaru.toISOString(),
             };
         } else {
-            updatePayload.status = 'Proses';
+            updatedWO.status = 'Proses';
         }
     } else if (status === 'Selesai') {
         const now = new Date();
-        if (workOrder.targetCompletionTime) {
-            const targetDate = new Date(workOrder.targetCompletionTime);
+        if (updatedWO.targetCompletionTime) {
+            const targetDate = new Date(updatedWO.targetCompletionTime);
             const diffMins = differenceInMinutes(now, targetDate);
             const formatDetailedDifference = (minutes: number) => {
                 const absMinutes = Math.abs(minutes);
@@ -363,25 +371,25 @@ export default function WorkOrderPage() {
                 if (mins > 0) result += `${mins} menit`;
                 return result.trim() || 'kurang dari 1 menit';
             };
-            if (diffMins <= 5 && diffMins >= -5) updatePayload.notes = 'Tepat Waktu';
-            else if (diffMins < -5) updatePayload.notes = `Lebih Cepat ${formatDetailedDifference(diffMins)} dari target`;
-            else updatePayload.notes = `Terlambat ${formatDetailedDifference(diffMins)}`;
+            if (diffMins <= 5 && diffMins >= -5) updatedWO.notes = 'Tepat Waktu';
+            else if (diffMins < -5) updatedWO.notes = `Lebih Cepat ${formatDetailedDifference(diffMins)} dari target`;
+            else updatedWO.notes = `Terlambat ${formatDetailedDifference(diffMins)}`;
         } else {
-            updatePayload.notes = "Target waktu tidak diatur.";
+            updatedWO.notes = "Target waktu tidak diatur.";
         }
-        updatePayload.completionTime = now.toISOString();
-        updatePayload.status = 'Selesai';
-        await clearVehicleDamageStatus(workOrder.vehicle.reportId);
-        toast({ title: 'Perbaikan Selesai', description: `Kendaraan ${workOrder.vehicle.userNik} telah selesai diperbaiki.` });
+        updatedWO.completionTime = now.toISOString();
+        updatedWO.status = 'Selesai';
+        clearVehicleDamageStatus(updatedWO.vehicle.reportId);
+        toast({ title: 'Perbaikan Selesai', description: `Kendaraan ${updatedWO.vehicle.userNik} telah selesai diperbaiki.` });
     } else {
-        updatePayload.status = status;
-        if (status !== 'Tunda' && workOrder.status !== 'Tunda' && !workOrder.notes?.startsWith('DITUNDA')) {
-            updatePayload.notes = '';
+        updatedWO.status = status;
+        if (status !== 'Tunda' && updatedWO.status !== 'Tunda' && !updatedWO.notes?.startsWith('DITUNDA')) {
+            updatedWO.notes = '';
         }
-        delete updatePayload.completionTime;
+        delete updatedWO.completionTime;
     }
     
-    await updateDoc(docRef, updatePayload);
+    updateWorkOrderInStorage(updatedWO);
     if (status !== 'Proses' && status !== 'Tunda') {
         toast({ title: 'Status Diperbarui', description: `Work Order telah diperbarui menjadi "${status}".` });
     }
@@ -403,10 +411,10 @@ export default function WorkOrderPage() {
     const newPart: SparePartUsage = { id: new Date().toISOString(), ...sparePartForm };
     const updatedParts = [...(workOrderToManageParts.usedSpareParts || []), newPart];
     
-    const docRef = doc(firestore, WORK_ORDER_COLLECTION, workOrderToManageParts.id);
-    await updateDoc(docRef, { usedSpareParts: updatedParts });
+    const updatedWO = { ...workOrderToManageParts, usedSpareParts: updatedParts };
+    updateWorkOrderInStorage(updatedWO);
 
-    setWorkOrderToManageParts(prev => prev ? { ...prev, usedSpareParts: updatedParts } : null);
+    setWorkOrderToManageParts(updatedWO);
     setSparePartForm(initialSparePartFormState);
   };
 
@@ -415,10 +423,10 @@ export default function WorkOrderPage() {
 
     const updatedParts = workOrderToManageParts.usedSpareParts?.filter(p => p.id !== partId);
     
-    const docRef = doc(firestore, WORK_ORDER_COLLECTION, workOrderToManageParts.id);
-    await updateDoc(docRef, { usedSpareParts: updatedParts });
-
-    setWorkOrderToManageParts(prev => prev ? { ...prev, usedSpareParts: updatedParts } : null);
+    const updatedWO = { ...workOrderToManageParts, usedSpareParts: updatedParts };
+    updateWorkOrderInStorage(updatedWO);
+    
+    setWorkOrderToManageParts(updatedWO);
   };
   
     const calculateDuration = (wo: WorkOrder): string => {

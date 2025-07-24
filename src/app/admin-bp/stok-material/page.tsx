@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -16,7 +17,6 @@ import { useAuth } from '@/context/auth-provider';
 import type { ProductionHistoryEntry, UserLocation } from '@/lib/types';
 
 const MATERIAL_LABELS_KEY = 'app-material-labels';
-const SPECIFIC_GRAVITY_KEY = 'app-material-specific-gravity';
 const getStockStorageKey = (location: UserLocation, date: Date) => `app-stok-${location}-${format(date, 'yyyy-MM-dd')}`;
 const PRODUCTION_HISTORY_KEY = 'app-production-history';
 
@@ -94,7 +94,7 @@ export default function StokMaterialPage() {
   useEffect(() => {
     if(!user?.location) return;
 
-    const fetchStockData = async () => {
+    const fetchStockData = () => {
         try {
           const key = getStockStorageKey(user.location as UserLocation, date);
           const storedData = localStorage.getItem(key);

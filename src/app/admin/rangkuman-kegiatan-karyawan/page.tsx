@@ -47,7 +47,7 @@ export default function RangkumanKegiatanKaryawanPage() {
     try {
       const users = getUsers();
       const filteredKaryawan = users.filter(u => 
-        u.role === 'karyawan' && 
+        (u.jabatan?.includes('SOPIR') || u.jabatan?.includes('OPRATOR') || u.jabatan?.includes('HELPER')) && 
         (adminUser?.role === 'super_admin' || u.location === adminUser?.location)
       );
       setAllKaryawan(filteredKaryawan);

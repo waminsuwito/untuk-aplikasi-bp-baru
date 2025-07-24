@@ -33,8 +33,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { firestore } from '@/lib/firebase';
-import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+
+const GLOBAL_ATTENDANCE_KEY = 'app-global-attendance-records';
 
 
 export default function AbsensiKaryawanHariIniPage() {
@@ -48,28 +48,28 @@ export default function AbsensiKaryawanHariIniPage() {
   });
 
   useEffect(() => {
-    if (!user) return;
+    const loadAttendance = () => {
+      if (!user) return;
+      try {
+        const storedData = localStorage.getItem(GLOBAL_ATTENDANCE_KEY);
+        const allRecords: GlobalAttendanceRecord[] = storedData ? JSON.parse(storedData) : [];
+        const today = format(new Date(), 'yyyy-MM-dd');
+        
+        let filteredRecords = allRecords.filter(r => r.date === today);
 
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const attendanceCollectionRef = collection(firestore, 'attendance-records');
+        if (user.location) {
+          filteredRecords = filteredRecords.filter(r => r.location === user.location);
+        }
+
+        setDaftarAbsensi(filteredRecords);
+      } catch (error) {
+        console.error("Failed to load attendance data from localStorage", error);
+      }
+    };
     
-    let q = query(attendanceCollectionRef, where('date', '==', today));
-    
-    if (user.location) {
-        q = query(q, where('location', '==', user.location));
-    }
-
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const records: GlobalAttendanceRecord[] = [];
-        querySnapshot.forEach((doc) => {
-            records.push(doc.data() as GlobalAttendanceRecord);
-        });
-        setDaftarAbsensi(records);
-    }, (error) => {
-        console.error("Failed to fetch real-time attendance data:", error);
-    });
-
-    return () => unsubscribe();
+    loadAttendance();
+    window.addEventListener('storage', loadAttendance);
+    return () => window.removeEventListener('storage', loadAttendance);
 
   }, [user]);
 
