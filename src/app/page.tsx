@@ -10,12 +10,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, createEmailFromNik, getUsers } from '@/lib/auth';
+import { seedUsersToFirestore, createEmailFromNik, getUsers, getCurrentUserDetails } from '@/lib/auth';
 import Image from 'next/image';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, firestore } from '@/lib/firebase';
 import type { User } from '@/lib/types';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, or } from 'firebase/firestore';
 
 
 export default function LoginPage() {
@@ -41,24 +41,15 @@ export default function LoginPage() {
     
     try {
         const usersRef = collection(firestore, 'users');
-        let userDetail: Omit<User, 'password'> | null = null;
+        // Query for a user where the NIK or the username matches the input
+        const q = query(usersRef, or(
+            where("nik", "==", nikOrUsername.toUpperCase()),
+            where("username", "==", nikOrUsername)
+        ));
 
-        // Query by NIK first
-        const nikQuery = query(usersRef, where("nik", "==", nikOrUsername.toUpperCase()));
-        const nikSnapshot = await getDocs(nikQuery);
+        const querySnapshot = await getDocs(q);
 
-        if (!nikSnapshot.empty) {
-            userDetail = nikSnapshot.docs[0].data() as Omit<User, 'password'>;
-        } else {
-            // If not found by NIK, query by username (case-insensitive is hard on client, so we try a few common cases)
-            const usernameQuery = query(usersRef, where("username", "==", nikOrUsername));
-            const usernameSnapshot = await getDocs(usernameQuery);
-            if (!usernameSnapshot.empty) {
-                 userDetail = usernameSnapshot.docs[0].data() as Omit<User, 'password'>;
-            }
-        }
-        
-        if (!userDetail) {
+        if (querySnapshot.empty) {
              toast({
                 variant: 'destructive',
                 title: 'Login Gagal',
@@ -67,7 +58,10 @@ export default function LoginPage() {
              setIsLoggingIn(false);
              return;
         }
-
+        
+        // Get the user detail from the first result
+        const userDetail = querySnapshot.docs[0].data();
+        
         if (!userDetail.nik) {
              toast({
                 variant: 'destructive',
@@ -78,6 +72,7 @@ export default function LoginPage() {
              return;
         }
         
+        // Always use the NIK from the database to create the email for authentication
         const email = createEmailFromNik(userDetail.nik);
         
         await signInWithEmailAndPassword(auth, email, password);
