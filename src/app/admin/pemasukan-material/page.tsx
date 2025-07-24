@@ -104,23 +104,28 @@ export default function PemasukanMaterialPage() {
     <div className="space-y-6">
       <Card id="print-content">
         <CardHeader>
-          <div className="flex justify-between items-start">
+          <div className="flex justify-between items-start no-print">
             <div>
-              <CardTitle className="flex items-center gap-2 no-print">
+              <CardTitle className="flex items-center gap-2">
                 <PackagePlus className="h-6 w-6 text-primary" />
                 Laporan Pemasukan Material
               </CardTitle>
-              <CardDescription className="no-print">
+              <CardDescription>
                 Menampilkan laporan material yang telah selesai dibongkar. Gunakan filter untuk menyortir data.
               </CardDescription>
             </div>
             <button
               onClick={() => printElement('print-content')}
-              className="no-print inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 text-sm font-medium"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 text-sm font-medium"
             >
               <Printer className="mr-2 h-4 w-4" />
               Cetak
             </button>
+          </div>
+          <div className="print-only mb-4 text-center">
+              <h2 className="text-xl font-bold mb-2">Laporan Pemasukan Material</h2>
+              <p><span className="font-semibold">Jenis Material:</span> {selectedMaterial === 'all' ? 'Semua' : selectedMaterial}</p>
+              <p><span className="font-semibold">Tanggal Masuk:</span> {selectedDate ? format(selectedDate, 'd MMMM yyyy') : 'Semua'}</p>
           </div>
         </CardHeader>
         <CardContent>
@@ -169,12 +174,6 @@ export default function PemasukanMaterialPage() {
             </div>
           </div>
           
-          <div className="print-only mb-4">
-              <h2 className="text-xl font-bold mb-2">Laporan Pemasukan Material</h2>
-              <p><span className="font-semibold">Jenis Material:</span> {selectedMaterial === 'all' ? 'Semua' : selectedMaterial}</p>
-              <p><span className="font-semibold">Tanggal Masuk:</span> {selectedDate ? format(selectedDate, 'd MMMM yyyy') : 'Semua'}</p>
-          </div>
-
           {filteredUnloads.length > 0 ? (
             <div className="border rounded-lg">
                 <Table>

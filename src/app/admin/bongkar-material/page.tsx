@@ -312,19 +312,20 @@ export default function BongkarMaterialPage() {
       
       <Card id="print-content">
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center no-print">
             <div>
               <CardTitle>Riwayat Bongkar Material</CardTitle>
               <CardDescription>
                 Daftar aktivitas bongkar material yang sedang berjalan dan yang sudah selesai.
               </CardDescription>
             </div>
-            <Button onClick={() => printElement('print-content')} className="no-print">
+            <Button onClick={() => printElement('print-content')}>
               <Printer className="mr-2 h-4 w-4" /> Cetak
             </Button>
           </div>
           <div className="print-only mb-6 text-center">
             <h1 className="text-xl font-bold">Riwayat Bongkar Material</h1>
+            <p className="text-sm">Lokasi: {user?.location || '...'}</p>
           </div>
         </CardHeader>
         <CardContent>

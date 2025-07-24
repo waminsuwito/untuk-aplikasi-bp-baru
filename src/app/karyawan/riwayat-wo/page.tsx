@@ -143,6 +143,7 @@ export default function RiwayatWoPage() {
       <CardContent>
          <div className="print-only mb-6 text-center">
             <h1 className="text-xl font-bold">Riwayat Work Order</h1>
+             <p className="text-sm">Lokasi: {user?.location || 'Semua Lokasi'}</p>
             <p className="text-sm">
                 Tanggal: {date?.from ? format(date.from, 'd MMM yyyy') : 'Semua'}
                 {date?.to ? ` - ${format(date.to, 'd MMM yyyy')}` : ''}

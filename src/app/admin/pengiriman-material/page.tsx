@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { printElement } from '@/lib/utils';
+import { useAuth } from '@/context/auth-provider';
 
 const MATERIAL_KELUAR_STORAGE_KEY = 'app-material-keluar';
 const materialOptions = ["Batu", "Pasir", "Semen", "Obat Beton"];
@@ -54,6 +55,7 @@ const initialFormState = {
 };
 
 export default function PengirimanMaterialPage() {
+  const { user } = useAuth();
   const [daftarMaterialKeluar, setDaftarMaterialKeluar] = useState<MaterialKeluar[]>([]);
   const [formState, setFormState] = useState(initialFormState);
 
@@ -224,19 +226,20 @@ export default function PengirimanMaterialPage() {
       
       <Card id="print-content">
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center no-print">
             <div>
               <CardTitle>Riwayat Pengiriman Material</CardTitle>
               <CardDescription>
                 Daftar material yang telah dikirim.
               </CardDescription>
             </div>
-            <Button onClick={() => printElement('print-content')} className="no-print">
+            <Button onClick={() => printElement('print-content')}>
               <Printer className="mr-2 h-4 w-4" /> Cetak
             </Button>
           </div>
           <div className="print-only mb-6 text-center">
             <h1 className="text-xl font-bold">Riwayat Pengiriman Material</h1>
+            <p className="text-sm">Lokasi: {user?.location}</p>
           </div>
         </CardHeader>
         <CardContent>
