@@ -39,6 +39,7 @@ export default function LoginPage() {
     
     try {
         // Step 1: Find the user in Firestore first to get their official NIK.
+        // This is now the ONLY read operation before authentication.
         const userDetail = await findUserByNikOrUsername(nikOrUsername.trim());
 
         // Step 2: Validate if user was found
@@ -47,10 +48,10 @@ export default function LoginPage() {
         }
         
         // Step 3: Use the NIK from the database to create the email and sign in
-        const emailToAuth = createEmailFromNik(userDetail.nik);
-        const userCredential = await signInWithEmailAndPassword(auth, emailToAuth, password);
-
-        // After successful sign-in, the AuthProvider will handle redirection.
+        const email = createEmailFromNik(userDetail.nik);
+        
+        await signInWithEmailAndPassword(auth, email, password);
+        
         toast({
             title: 'Login Berhasil',
             description: `Selamat datang kembali, ${userDetail.username}.`,
@@ -117,7 +118,8 @@ export default function LoginPage() {
                 placeholder="Masukkan NIK atau Username Anda"
                 required
                 value={nikOrUsername}
-                onChange={(e) => setNikOrUsername(e.target.value)}
+                onChange={(e) => setNikOrUsername(e.target.value.toUpperCase())}
+                style={{ textTransform: 'uppercase' }}
                 disabled={isLoggingIn || isSeeding}
                 />
             </div>

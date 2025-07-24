@@ -118,14 +118,14 @@ export async function getUsers(): Promise<User[]> {
 export async function findUserByNikOrUsername(identifier: string): Promise<User | null> {
     const usersRef = collection(firestore, 'users');
     // First, try to find by NIK
-    const nikQuery = query(usersRef, where("nik", "==", identifier), limit(1));
+    const nikQuery = query(usersRef, where("nik", "==", identifier.toUpperCase()), limit(1));
     const nikSnapshot = await getDocs(nikQuery);
     if (!nikSnapshot.empty) {
         return nikSnapshot.docs[0].data() as User;
     }
 
     // If not found by NIK, try by username
-    const usernameQuery = query(usersRef, where("username", "==", identifier), limit(1));
+    const usernameQuery = query(usersRef, where("username", "==", identifier.toUpperCase()), limit(1));
     const usernameSnapshot = await getDocs(usernameQuery);
     if (!usernameSnapshot.empty) {
         return usernameSnapshot.docs[0].data() as User;
@@ -155,10 +155,6 @@ export async function addUser(userData: Omit<User, 'id'> & { password?: string }
       const userDocRef = doc(firestore, 'users', authUid);
       const { password, ...userDataForFirestore } = userData;
       await setDoc(userDocRef, { ...userDataForFirestore, id: authUid });
-      
-      // Sign out the admin user after creating a new user, to prevent session interference.
-      // This is a workaround for client-side user creation.
-      await signOut(auth);
       
       return { ...userData, id: authUid };
     } catch(error: any) {
