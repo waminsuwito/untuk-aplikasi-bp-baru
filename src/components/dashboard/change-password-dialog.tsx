@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -24,7 +23,7 @@ import { useAuth } from '@/context/auth-provider';
 
 const passwordSchema = z.object({
   oldPassword: z.string().min(1, 'Password lama harus diisi.'),
-  newPassword: z.string().min(1, 'Password baru minimal 1 karakter.'),
+  newPassword: z.string().min(6, 'Password baru minimal 6 karakter.'),
   confirmPassword: z.string(),
 }).refine(data => data.newPassword === data.confirmPassword, {
   message: 'Password tidak cocok.',
@@ -34,10 +33,9 @@ const passwordSchema = z.object({
 interface ChangePasswordDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  userId: string;
 }
 
-export function ChangePasswordDialog({ isOpen, onOpenChange, userId }: ChangePasswordDialogProps) {
+export function ChangePasswordDialog({ isOpen, onOpenChange }: ChangePasswordDialogProps) {
   const { toast } = useToast();
   const { logout } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -52,7 +50,7 @@ export function ChangePasswordDialog({ isOpen, onOpenChange, userId }: ChangePas
 
   const onSubmit = async (values: z.infer<typeof passwordSchema>) => {
     setIsLoading(true);
-    const result = await changePassword(userId, values.oldPassword, values.newPassword);
+    const result = await changePassword(values.oldPassword, values.newPassword);
     if (result.success) {
         toast({ title: 'Berhasil', description: 'Password telah diubah. Silakan login kembali.' });
         form.reset();

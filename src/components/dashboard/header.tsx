@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useAuth } from '@/context/auth-provider';
@@ -150,7 +148,6 @@ export function Header() {
         <ChangePasswordDialog
           isOpen={isPasswordDialogOpen}
           onOpenChange={setPasswordDialogOpen}
-          userId={user.id}
         />
       )}
     </>
