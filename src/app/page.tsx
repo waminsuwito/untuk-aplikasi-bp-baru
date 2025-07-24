@@ -38,19 +38,36 @@ export default function LoginPage() {
     }
     setIsLoggingIn(true);
     
-    // Simplified Login Flow: Attempt login directly, then fetch details.
-    // This is more robust against Firestore/Auth data desync.
     try {
-        // Assume the input is a NIK first for direct authentication
-        const email = createEmailFromNik(nikOrUsername);
+        // Step 1: Find user in Firestore by NIK or Username
+        const usersRef = collection(firestore, "users");
+        const q = query(usersRef, where("nik", "==", nikOrUsername.trim()));
+        const q2 = query(usersRef, where("username", "==", nikOrUsername.trim()));
+        
+        const querySnapshot = await getDocs(q);
+        const querySnapshot2 = await getDocs(q2);
+
+        let userDetail: Omit<User, 'password'> | null = null;
+
+        if (!querySnapshot.empty) {
+            userDetail = querySnapshot.docs[0].data() as User;
+        } else if (!querySnapshot2.empty) {
+            userDetail = querySnapshot2.docs[0].data() as User;
+        }
+
+        // Step 2: Validate if user was found
+        if (!userDetail || !userDetail.nik) {
+             throw new Error("Pengguna tidak ditemukan atau data NIK tidak valid.");
+        }
+        
+        // Step 3: Use the NIK from the database to create the email and sign in
+        const email = createEmailFromNik(userDetail.nik);
         
         await signInWithEmailAndPassword(auth, email, password);
         
-        // If we reach here, login was successful. The AuthProvider will handle redirection.
-        // We can show a generic success message.
         toast({
             title: 'Login Berhasil',
-            description: `Selamat datang kembali. Mengarahkan ke dashboard...`,
+            description: `Selamat datang kembali, ${userDetail.username}. Mengarahkan ke dashboard...`,
         });
 
     } catch (error: any) {
