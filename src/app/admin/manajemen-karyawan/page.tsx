@@ -6,41 +6,12 @@ import { Shield } from 'lucide-react';
 import { UserForm, type UserFormValues } from '@/components/admin/user-form';
 import { UserList } from '@/components/admin/user-list';
 import { type User, type Jabatan } from '@/lib/types';
-import { addUser, updateUser, deleteUser } from '@/lib/auth';
-import { firestore } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { addUser, updateUser, deleteUser, getUsers } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useState, useCallback } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-provider';
-
-
-const SUPER_ADMIN_DEFAULTS = {
-  id: 'superadmin-main',
-  username: 'SUPERADMIN',
-  nik: 'SUPERADMIN',
-  jabatan: 'SUPER ADMIN' as const,
-  location: 'BP PEKANBARU' as const,
-};
-
-async function getUsersFromFirestore(): Promise<User[]> {
-  try {
-    const usersCollection = collection(firestore, 'users');
-    const userSnapshot = await getDocs(usersCollection);
-    const userList = userSnapshot.docs.map(doc => doc.data() as User);
-    
-    const superAdminExists = userList.some(u => u.id === SUPER_ADMIN_DEFAULTS.id);
-    if (!superAdminExists) {
-      userList.push(SUPER_ADMIN_DEFAULTS);
-    }
-    
-    return userList;
-  } catch (error) {
-    console.error("Error getting users:", error);
-    return [];
-  }
-}
 
 
 export default function ManajemenKaryawanPage() {
@@ -53,7 +24,7 @@ export default function ManajemenKaryawanPage() {
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const userList = await getUsersFromFirestore();
+      const userList = await getUsers();
       setUsers(userList || []);
     } catch (error) {
       console.error("Failed to load users:", error);
@@ -71,7 +42,7 @@ export default function ManajemenKaryawanPage() {
   }, [isAuthLoading, fetchUsers]);
 
   const handleSaveUser = async (data: UserFormValues, userId: string | null) => {
-    const currentUsers = await getUsersFromFirestore();
+    const currentUsers = await getUsers();
     
     const nikExists = currentUsers.some(
       (user) => user.nik === data.nik && user.id !== userId

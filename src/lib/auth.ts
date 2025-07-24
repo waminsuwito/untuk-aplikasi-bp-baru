@@ -18,6 +18,27 @@ const SUPER_ADMIN_DEFAULTS = {
   location: 'BP PEKANBARU' as const,
 };
 
+// Function to get all users from Firestore
+export async function getUsers(): Promise<User[]> {
+  try {
+    const usersCollection = collection(firestore, 'users');
+    const userSnapshot = await getDocs(usersCollection);
+    const userList = userSnapshot.docs.map(doc => doc.data() as User);
+    
+    // Ensure SUPERADMIN always exists in the list for management purposes
+    const superAdminExists = userList.some(u => u.id === SUPER_ADMIN_DEFAULTS.id);
+    if (!superAdminExists) {
+      userList.push(SUPER_ADMIN_DEFAULTS);
+    }
+    
+    return userList;
+  } catch (error) {
+    console.error("Error getting users from Firestore:", error);
+    // Return a default list with just the superadmin on error
+    return [SUPER_ADMIN_DEFAULTS];
+  }
+}
+
 // Function to create both Firebase Auth user and Firestore user profile
 export async function addUser(userData: Omit<User, 'id'>): Promise<{ success: boolean; message?: string }> {
   try {
@@ -77,8 +98,8 @@ export async function loginWithIdentifier(identifier: string, passwordFromInput:
         const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
         return userCredential.user;
     } catch (error: any) {
+        // If user does not exist in Auth, AND it's the SUPERADMIN, create them.
         if (error.code === 'auth/user-not-found' && identifier.toUpperCase() === 'SUPERADMIN') {
-            // If SUPERADMIN does not exist in Auth, create it.
             console.log("SUPERADMIN auth user not found, attempting to create...");
             try {
                 const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);

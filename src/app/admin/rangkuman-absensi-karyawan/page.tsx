@@ -45,9 +45,9 @@ export default function RangkumanAbsensiKaryawanPage() {
   });
   
   useEffect(() => {
-    function fetchData() {
+    async function fetchData() {
         try {
-            const users = getUsers();
+            const users = await getUsers();
             const filteredKaryawan = users.filter(u => 
                 u.jabatan?.includes('SOPIR') || u.jabatan?.includes('OPRATOR') || u.jabatan?.includes('HELPER') && 
                 (adminUser?.role === 'super_admin' || u.location === adminUser?.location)

@@ -52,9 +52,9 @@ export default function SopirBatanganPage() {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     if (user?.location) {
-      const users = getUsers();
+      const users = await getUsers();
       const filteredUsers = users.filter(u => u.location === user.location && u.jabatan !== 'SUPER ADMIN');
       
       const vehicles = getVehiclesForLocation(user.location);

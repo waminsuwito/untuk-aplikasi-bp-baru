@@ -44,21 +44,24 @@ export default function RangkumanKegiatanKaryawanPage() {
   });
   
   useEffect(() => {
-    try {
-      const users = getUsers();
-      const filteredKaryawan = users.filter(u => 
-        (u.jabatan?.includes('SOPIR') || u.jabatan?.includes('OPRATOR') || u.jabatan?.includes('HELPER')) && 
-        (adminUser?.role === 'super_admin' || u.location === adminUser?.location)
-      );
-      setAllKaryawan(filteredKaryawan);
+    async function fetchData() {
+      try {
+        const users = await getUsers();
+        const filteredKaryawan = users.filter(u => 
+          (u.jabatan?.includes('SOPIR') || u.jabatan?.includes('OPRATOR') || u.jabatan?.includes('HELPER')) && 
+          (adminUser?.role === 'super_admin' || u.location === adminUser?.location)
+        );
+        setAllKaryawan(filteredKaryawan);
 
-      const storedData = localStorage.getItem(GLOBAL_ACTIVITIES_KEY);
-      if (storedData) {
-        setAllActivities(JSON.parse(storedData));
+        const storedData = localStorage.getItem(GLOBAL_ACTIVITIES_KEY);
+        if (storedData) {
+          setAllActivities(JSON.parse(storedData));
+        }
+      } catch (error) {
+        console.error("Failed to load data:", error);
       }
-    } catch (error) {
-      console.error("Failed to load data:", error);
     }
+    fetchData();
   }, [adminUser]);
 
   const generatedRecords = useMemo(() => {

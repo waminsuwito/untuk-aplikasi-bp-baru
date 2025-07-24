@@ -75,10 +75,10 @@ export default function PetaKendaraanPage() {
   useEffect(() => {
     if (!user?.location) return;
 
-    const generateAndSavePositions = () => {
+    const generateAndSavePositions = async () => {
         const vehicles = getVehiclesForLocation(user.location as UserLocation);
         const assignments = getAssignments(user.location as UserLocation);
-        const allUsers = getUsers();
+        const allUsers = await getUsers();
         const userMap = new Map(allUsers.map(u => [u.id, u]));
 
         const positions: VehiclePosition[] = vehicles.map(vehicle => {

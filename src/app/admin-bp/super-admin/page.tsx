@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -7,7 +6,7 @@ import { Shield } from 'lucide-react';
 import { UserForm, type UserFormValues } from '@/components/admin/user-form';
 import { UserList } from '@/components/admin/user-list';
 import { type User, type Jabatan } from '@/lib/types';
-import { getUsers, addUser, updateUser, deleteUser } from '@/lib/auth';
+import { addUser, updateUser, deleteUser, getUsers } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { useEffect, useState, useCallback } from 'react';
@@ -22,14 +21,14 @@ export default function SuperAdminPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchUsers = useCallback(() => {
+  const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const userList = getUsers();
+      const userList = await getUsers();
       setUsers(userList || []);
     } catch (error) {
       console.error("Failed to load users:", error);
-      toast({ variant: 'destructive', title: "Error", description: "Could not load user data from localStorage." });
+      toast({ variant: 'destructive', title: "Error", description: "Could not load user data from the database." });
       setUsers([]);
     } finally {
       setIsLoading(false);
@@ -42,8 +41,8 @@ export default function SuperAdminPage() {
     }
   }, [isAuthLoading, fetchUsers]);
 
-  const handleSaveUser = (data: UserFormValues, userId: string | null) => {
-    const currentUsers = getUsers();
+  const handleSaveUser = async (data: UserFormValues, userId: string | null) => {
+    const currentUsers = await getUsers();
     
     const nikExists = currentUsers.some(
       (user) => user.nik === data.nik && user.id !== userId
@@ -58,7 +57,7 @@ export default function SuperAdminPage() {
       return;
     }
     
-    if (userId) { // Editing
+    if (userId) { // Editing an existing user
       const userDataToUpdate: Partial<User> = {
         username: data.username,
         jabatan: data.jabatan as Jabatan,
@@ -75,12 +74,14 @@ export default function SuperAdminPage() {
           });
           return;
         }
-        userDataToUpdate.password = data.password;
+        userDataToUpdate.password = data.password; 
+        console.warn(`Admin is changing password for user ${userId}.`);
       }
-      updateUser(userId, userDataToUpdate);
+
+      await updateUser(userId, userDataToUpdate);
       toast({ title: 'User Updated', description: `User "${data.username}" has been updated.` });
-    
-    } else { // Creating
+
+    } else { // Creating a new user
        if (!data.password) {
         toast({
           variant: 'destructive',
@@ -96,7 +97,7 @@ export default function SuperAdminPage() {
         location: data.location,
         nik: data.nik,
       };
-      const result = addUser(newUser);
+      const result = await addUser(newUser);
       if (result.success) {
         toast({ title: 'User Created', description: `User "${data.username}" has been created.` });
       } else {
@@ -104,7 +105,7 @@ export default function SuperAdminPage() {
       }
     }
     
-    fetchUsers();
+    await fetchUsers();
     setUserToEdit(null);
   };
   
@@ -116,9 +117,9 @@ export default function SuperAdminPage() {
     }
   };
 
-  const handleDeleteUser = (id: string) => {
-    deleteUser(id);
-    fetchUsers();
+  const handleDeleteUser = async (id: string) => {
+    await deleteUser(id);
+    await fetchUsers();
   };
 
   const handleCancelEdit = () => {

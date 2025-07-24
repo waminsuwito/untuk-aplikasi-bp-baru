@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -92,7 +91,7 @@ export default function WorkOrderPage() {
   defaultTargetDate.setHours(defaultTargetDate.getHours() + 2);
   const [targetTime, setTargetTime] = useState(formatDateTimeLocal(defaultTargetDate));
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     if (!user) return;
     
     const storedWorkOrders = localStorage.getItem(WORK_ORDER_COLLECTION_KEY);
@@ -251,7 +250,7 @@ export default function WorkOrderPage() {
     }
   };
   
-  const clearVehicleDamageStatus = (reportId: string) => {
+    const clearVehicleDamageStatus = (reportId: string) => {
       const isTm = reportId.startsWith('tm-checklist-');
       const key = isTm ? TM_CHECKLIST_COLLECTION_KEY : LOADER_CHECKLIST_COLLECTION_KEY;
 
