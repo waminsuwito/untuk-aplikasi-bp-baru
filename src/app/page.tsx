@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { seedUsersToFirestore, createEmailFromNik } from '@/lib/auth';
+import { seedUsersToFirestore, createEmailFromNik, getCurrentUserDetails } from '@/lib/auth';
 import Image from 'next/image';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, firestore } from '@/lib/firebase';
@@ -42,7 +42,7 @@ export default function LoginPage() {
         // Step 1: Find user in Firestore by NIK or Username (case-insensitive for username)
         const usersRef = collection(firestore, 'users');
         const nikQuery = query(usersRef, where("nik", "==", nikOrUsername));
-        const usernameQuery = query(usersRef, where("username", "==", nikOrUsername.toUpperCase()));
+        const usernameQuery = query(usersRef, where("username", "==", nikOrUsername));
 
         const nikSnapshot = await getDocs(nikQuery);
         const usernameSnapshot = await getDocs(usernameQuery);

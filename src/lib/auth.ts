@@ -1,4 +1,3 @@
-
 'use client';
 
 import { type User, type Jabatan, userLocations, jabatanOptions } from '@/lib/types';
