@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: 'PT. FARIKA RIAU PERKASA',
   description: 'One Stop Concrete Solution',
   authors: [{ name: 'Lovable' }],
+  manifest: '/manifest.json',
   openGraph: {
     title: 'PT. FARIKA RIAU PERKASA',
     description: 'One Stop Concrete Solution',
@@ -32,6 +33,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap" rel="stylesheet" />
+        <script src="/sw-register.js" defer></script>
       </head>
       <body className="font-sans antialiased">
         <AuthProvider>
