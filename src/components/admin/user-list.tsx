@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { type User } from '@/lib/types';
@@ -64,7 +65,7 @@ export function UserList({ users, onEdit, onDelete }: UserListProps) {
               </TableCell>
               <TableCell>{user.location || 'N/A'}</TableCell>
               <TableCell className="flex justify-center items-center gap-2">
-                <Button variant="outline" size="icon" onClick={() => onEdit(user.id)} disabled={user.id === 'superadmin-main'}>
+                <Button variant="outline" size="icon" onClick={() => onEdit(user.id)} disabled={user.username === 'FRP_ADMIN'}>
                   <Edit className="h-4 w-4" />
                   <span className="sr-only">Edit</span>
                 </Button>

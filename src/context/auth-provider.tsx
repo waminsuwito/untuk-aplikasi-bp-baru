@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
@@ -30,26 +31,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
         try {
-          const isSuperAdminLogin = firebaseUser.email?.startsWith('superadmin@');
-          const userId = isSuperAdminLogin ? 'superadmin-main' : firebaseUser.uid;
-          
-          const userDocRef = doc(firestore, 'users', userId);
+          const userDocRef = doc(firestore, 'users', firebaseUser.uid);
           const userDoc = await getDoc(userDocRef);
 
           if (userDoc.exists()) {
             const userData = userDoc.data() as User;
             const { password, ...userToSet } = userData;
             setUser(userToSet);
-          } else if (isSuperAdminLogin) {
-              // This case can happen if the auth user was created but firestore doc failed.
-              // We set the user based on defaults.
-              setUser({
-                  id: 'superadmin-main',
-                  username: 'SUPERADMIN',
-                  nik: 'SUPERADMIN',
-                  jabatan: 'SUPER ADMIN',
-                  location: 'BP PEKANBARU',
-              });
           } else {
             // This case might happen if Firestore doc is deleted but Auth user is not
             await signOut(auth);

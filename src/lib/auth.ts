@@ -1,20 +1,20 @@
 
+
 'use client';
 
 import { auth, firestore } from './firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, type User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { User } from './types';
-import { getDefaultRouteForUser } from './auth-guard-helper';
 
 // Helper to create a fake email from NIK/Username
 const createEmail = (identifier: string) => `${identifier.replace(/\s+/g, '_').toLowerCase()}@database.com`;
 
-// Pre-defined superadmin details
+// Pre-defined superadmin details using a new, unique name
 const SUPER_ADMIN_DEFAULTS: Omit<User, 'password'> = {
-  id: 'superadmin-main',
-  username: 'SUPERADMIN',
-  nik: 'SUPERADMIN',
+  id: 'frp-admin-main',
+  username: 'FRP_ADMIN',
+  nik: 'FRP_ADMIN',
   jabatan: 'SUPER ADMIN',
   location: 'BP PEKANBARU',
 };
@@ -24,9 +24,9 @@ export async function getUsers(): Promise<User[]> {
   try {
     const usersCollection = collection(firestore, 'users');
     const userSnapshot = await getDocs(usersCollection);
-    const userList = userSnapshot.docs.map(doc => doc.data() as User);
+    const userList = userSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
     
-    // Ensure SUPERADMIN always exists in the list for management purposes
+    // Ensure FRP_ADMIN always exists in the list for management purposes
     const superAdminExists = userList.some(u => u.id === SUPER_ADMIN_DEFAULTS.id);
     if (!superAdminExists) {
       userList.push(SUPER_ADMIN_DEFAULTS as User);
@@ -72,6 +72,8 @@ export async function updateUser(userId: string, updatedData: Partial<User>): Pr
 }
 
 export async function deleteUser(userId: string): Promise<void> {
+  // Note: This does not delete the Firebase Auth user, only the Firestore document.
+  // For a full user deletion, you would need a backend function.
   await deleteDoc(doc(firestore, 'users', userId));
 }
 
@@ -83,7 +85,10 @@ export async function changePassword(oldPassword: string, newPassword:string): P
 
     try {
         const email = user.email;
+        // Re-authenticate user before changing password
         await signInWithEmailAndPassword(auth, email, oldPassword);
+        
+        // If re-authentication is successful, update the password
         await updatePassword(user, newPassword);
         return { success: true, message: "Password updated successfully." };
     } catch (error: any) {
@@ -97,7 +102,7 @@ export async function changePassword(oldPassword: string, newPassword:string): P
 }
 
 export async function loginWithIdentifier(identifier: string, passwordFromInput: string): Promise<FirebaseUser> {
-    const isSuperAdminAttempt = identifier.toUpperCase() === 'SUPERADMIN';
+    const isSuperAdminAttempt = identifier.toUpperCase() === 'FRP_ADMIN';
     const email = createEmail(identifier);
 
     try {
@@ -105,18 +110,19 @@ export async function loginWithIdentifier(identifier: string, passwordFromInput:
         const userCredential = await signInWithEmailAndPassword(auth, email, passwordFromInput);
         return userCredential.user;
     } catch (error: any) {
-        // If sign-in fails because the user doesn't exist, AND it's the SUPERADMIN...
+        // If sign-in fails because the user doesn't exist...
         if (error.code === 'auth/user-not-found') {
+            // ... and it's the main admin attempting to log in for the first time...
             if (isSuperAdminAttempt) {
-                // ...then create the SUPERADMIN user now.
+                // ...then create the FRP_ADMIN user now.
                 try {
                     const newUserCredential = await createUserWithEmailAndPassword(auth, email, passwordFromInput);
-                    // Also create the Firestore doc for SUPERADMIN.
-                    await setDoc(doc(firestore, 'users', 'superadmin-main'), { ...SUPER_ADMIN_DEFAULTS, id: newUserCredential.user.uid });
+                    // Also create the Firestore doc for FRP_ADMIN.
+                    await setDoc(doc(firestore, 'users', newUserCredential.user.uid), { ...SUPER_ADMIN_DEFAULTS, id: newUserCredential.user.uid });
                     return newUserCredential.user;
                 } catch (createError: any) {
-                    // This might happen if the password is too weak, etc.
-                    throw new Error(`Gagal membuat pengguna SUPERADMIN: ${createError.message}`);
+                    console.error("Failed to create FRP_ADMIN user:", createError);
+                    throw new Error(`Gagal membuat pengguna FRP_ADMIN: ${createError.message}`);
                 }
             } else {
                 // If it's a regular user that's not found, deny access.
@@ -127,7 +133,7 @@ export async function loginWithIdentifier(identifier: string, passwordFromInput:
         } else {
             // For any other errors (network issues, etc.)
             console.error("Unhandled login error:", error);
-            throw new Error(`Terjadi kesalahan saat login: ${error.message}`);
+            throw new Error(`Terjadi kesalahan saat login: ${error.code}`);
         }
     }
 }
