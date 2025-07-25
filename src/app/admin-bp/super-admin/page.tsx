@@ -48,7 +48,7 @@ export default function SuperAdminPage() {
       (user) => user.nik === data.nik && user.id !== userId
     );
 
-    if (nikExists) {
+    if (nikExists && userToEdit?.nik !== data.nik) {
       toast({
         variant: 'destructive',
         title: 'Gagal Menyimpan',
@@ -82,11 +82,11 @@ export default function SuperAdminPage() {
       toast({ title: 'User Updated', description: `User "${data.username}" has been updated.` });
 
     } else { // Creating a new user
-       if (!data.password) {
+       if (!data.password || data.password.length < 6) {
         toast({
           variant: 'destructive',
           title: 'Creation Failed',
-          description: 'Password is required for new users.',
+          description: 'Password is required and must be at least 6 characters long.',
         });
         return;
       }

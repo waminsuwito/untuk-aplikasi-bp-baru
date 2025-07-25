@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { auth, firestore } from './firebase';
