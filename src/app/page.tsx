@@ -31,7 +31,7 @@ export default function LoginPage() {
     
     try {
       await login(nikOrUsername, password);
-      // The redirect is handled by the AuthProvider
+      // The redirect is handled by the AuthProvider, no need for success toast here.
     } catch (error: any) {
       toast({
         variant: 'destructive',
