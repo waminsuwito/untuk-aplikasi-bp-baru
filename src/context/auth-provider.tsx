@@ -1,16 +1,12 @@
 
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { auth, firestore } from '@/lib/firebase';
-import { onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 import { type User } from '@/lib/types';
 import { getDefaultRouteForUser } from '@/lib/auth-guard-helper';
-import { loginWithIdentifier } from '@/lib/auth';
+import { loginWithIdentifier, logout as logoutUser, getLoggedInUser } from '@/lib/auth';
 
 interface AuthContextType {
   user: Omit<User, 'password'> | null;
@@ -28,33 +24,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        try {
-          const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
-
-          if (userDoc.exists()) {
-            const userData = userDoc.data() as User;
-            const { password, ...userToSet } = userData;
-            setUser(userToSet);
-          } else {
-            // This case might happen if Firestore doc is deleted but Auth user is not
-            await signOut(auth);
-            setUser(null);
-          }
-        } catch(e) {
-            console.error("Error fetching user document", e);
-            await signOut(auth);
-            setUser(null);
-        }
-      } else {
-        setUser(null);
-      }
-      setIsLoading(false);
-    });
-
-    return () => unsubscribe();
+    // Check for logged-in user in localStorage on initial load
+    const loggedInUser = getLoggedInUser();
+    setUser(loggedInUser);
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -62,16 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const isAuthPage = pathname === '/';
     
-    // If there is a user, they should NOT be on the login page.
-    // Redirect them to their default route.
     if (user && isAuthPage) {
       const defaultRoute = getDefaultRouteForUser(user);
       router.replace(defaultRoute);
       return;
     }
     
-    // If there is no user, they should ONLY be on the login page.
-    // If they are on any other page, redirect them.
     if (!user && !isAuthPage) {
       router.replace('/');
       return;
@@ -80,12 +49,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
 
   const login = useCallback(async (identifier: string, passwordFromInput: string): Promise<void> => {
-    await loginWithIdentifier(identifier, passwordFromInput);
+    const loggedInUser = await loginWithIdentifier(identifier, passwordFromInput);
+    setUser(loggedInUser);
   }, []);
   
   const logout = useCallback(async () => {
-    await signOut(auth);
-  }, []);
+    await logoutUser();
+    setUser(null);
+    router.replace('/');
+  }, [router]);
 
 
   if (isLoading) {

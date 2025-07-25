@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -50,19 +51,24 @@ export function ChangePasswordDialog({ isOpen, onOpenChange }: ChangePasswordDia
 
   const onSubmit = async (values: z.infer<typeof passwordSchema>) => {
     setIsLoading(true);
-    const result = await changePassword(values.oldPassword, values.newPassword);
-    if (result.success) {
-        toast({ title: 'Berhasil', description: 'Password telah diubah. Silakan login kembali.' });
-        form.reset();
-        onOpenChange(false);
-        // Log out user after password change to force re-login
-        setTimeout(() => {
-            logout();
-        }, 1000);
-    } else {
-        toast({ variant: 'destructive', title: 'Gagal', description: result.message });
+    try {
+        const result = await changePassword(values.oldPassword, values.newPassword);
+        if (result.success) {
+            toast({ title: 'Berhasil', description: 'Password telah diubah. Silakan login kembali.' });
+            form.reset();
+            onOpenChange(false);
+            // Log out user after password change to force re-login
+            setTimeout(() => {
+                logout();
+            }, 1000);
+        } else {
+            toast({ variant: 'destructive', title: 'Gagal', description: result.message });
+        }
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message || "An unknown error occurred." });
+    } finally {
+        setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleOpenChange = (open: boolean) => {

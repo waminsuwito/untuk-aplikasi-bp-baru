@@ -1,52 +1,88 @@
+
 'use client';
 
-import { firestore } from './firebase';
-import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { JobMixFormula } from '@/lib/types';
 
-const FORMULAS_COLLECTION_NAME = 'formulas';
+const FORMULAS_STORAGE_KEY = 'app-formulas';
 
-export async function getFormulas(): Promise<JobMixFormula[]> {
-  try {
-    const formulasCollection = collection(firestore, FORMULAS_COLLECTION_NAME);
-    const formulaSnapshot = await getDocs(formulasCollection);
-    if (formulaSnapshot.empty) {
-      // Data is empty, no seeding on production.
-      return [];
+// Pre-seeded data for demonstration
+const seedFormulas: JobMixFormula[] = [
+    {
+        id: "1",
+        mutuBeton: "K-225",
+        mutuCode: "BPM",
+        pasir1: 855,
+        pasir2: 0,
+        batu1: 1025,
+        batu2: 0,
+        batu3: 0,
+        batu4: 0,
+        semen: 300,
+        air: 150,
+        additive1: 0,
+        additive2: 0,
+        additive3: 0,
+    },
+    {
+        id: "2",
+        mutuBeton: "K-300",
+        mutuCode: "BPS",
+        pasir1: 750,
+        pasir2: 0,
+        batu1: 1100,
+        batu2: 0,
+        batu3: 0,
+        batu4: 0,
+        semen: 350,
+        air: 175,
+        additive1: 0.5,
+        additive2: 0,
+        additive3: 0,
     }
-    const formulaList = formulaSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as JobMixFormula));
-    return formulaList;
+];
+
+export function getFormulas(): JobMixFormula[] {
+  try {
+    const storedFormulas = localStorage.getItem(FORMULAS_STORAGE_KEY);
+    if (storedFormulas) {
+      return JSON.parse(storedFormulas);
+    } else {
+      // If no formulas are stored, seed with default data
+      localStorage.setItem(FORMULAS_STORAGE_KEY, JSON.stringify(seedFormulas));
+      return seedFormulas;
+    }
   } catch (error) {
-    console.error('Failed to get formulas from Firestore:', error);
+    console.error('Failed to get formulas from localStorage:', error);
     return [];
   }
 }
 
-export async function saveFormulas(formulas: JobMixFormula[]): Promise<void> {
-    // This function might be less used now, as we'll add/update/delete one by one.
-    // But it could be useful for a bulk import feature.
+export function saveFormulas(formulas: JobMixFormula[]): void {
     try {
-        const formulasCollection = collection(firestore, FORMULAS_COLLECTION_NAME);
-        for (const formula of formulas) {
-            const { id, ...data } = formula;
-            const docRef = doc(formulasCollection, id);
-            await addDoc(formulasCollection, data);
-        }
+        localStorage.setItem(FORMULAS_STORAGE_KEY, JSON.stringify(formulas));
     } catch (error) {
-        console.error('Failed to save formulas to Firestore:', error);
+        console.error('Failed to save formulas to localStorage:', error);
     }
 }
 
-export async function addFormula(formulaData: Omit<JobMixFormula, 'id'>): Promise<void> {
-  await addDoc(collection(firestore, FORMULAS_COLLECTION_NAME), formulaData);
+export function addFormula(formulaData: Omit<JobMixFormula, 'id'>): void {
+  const formulas = getFormulas();
+  const newFormula = {
+    ...formulaData,
+    id: `formula-${Date.now()}`,
+  };
+  formulas.push(newFormula);
+  saveFormulas(formulas);
 }
 
-export async function updateFormula(updatedFormula: JobMixFormula): Promise<void> {
-  const { id, ...data } = updatedFormula;
-  const formulaRef = doc(firestore, FORMULAS_COLLECTION_NAME, id);
-  await updateDoc(formulaRef, data);
+export function updateFormula(updatedFormula: JobMixFormula): void {
+  let formulas = getFormulas();
+  formulas = formulas.map(f => (f.id === updatedFormula.id ? updatedFormula : f));
+  saveFormulas(formulas);
 }
 
-export async function deleteFormula(formulaId: string): Promise<void> {
-  await deleteDoc(doc(firestore, FORMULAS_COLLECTION_NAME, formulaId));
+export function deleteFormula(formulaId: string): void {
+  let formulas = getFormulas();
+  formulas = formulas.filter(f => f.id !== formulaId);
+  saveFormulas(formulas);
 }

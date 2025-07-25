@@ -28,7 +28,7 @@ export default function ManajemenKaryawanPage() {
       setUsers(userList || []);
     } catch (error) {
       console.error("Failed to load users:", error);
-      toast({ variant: 'destructive', title: "Error", description: "Could not load user data from database." });
+      toast({ variant: 'destructive', title: "Error", description: "Could not load user data from local storage." });
       setUsers([]);
     } finally {
       setIsLoading(false);

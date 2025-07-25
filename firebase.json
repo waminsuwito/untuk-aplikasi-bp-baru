@@ -4,6 +4,8 @@
     "public": "out",
     "ignore": [
       "firebase.json",
+      "database.rules.json",
+      ".firebaserc",
       "**/.*",
       "**/node_modules/**"
     ],

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -57,13 +58,13 @@ export function ScheduleSheet({ isOperatorView }: { isOperatorView?: boolean }) 
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const loadDataFromFirestore = useCallback(async () => {
+  const loadDataFromStorage = useCallback(() => {
     setIsLoading(true);
     try {
-      const fetchedFormulas = await getFormulas();
+      const fetchedFormulas = getFormulas();
       setFormulas(fetchedFormulas);
 
-      const storedData = await getScheduleSheetData();
+      const storedData = getScheduleSheetData();
       let fullData;
       if (storedData.length > 0) {
         const recalculatedData = storedData.map(recalculateRow);
@@ -77,16 +78,18 @@ export function ScheduleSheet({ isOperatorView }: { isOperatorView?: boolean }) 
       }
       setData(fullData);
     } catch (error) {
-        console.error("Failed to load schedule sheet data from Firestore", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Gagal memuat data schedule dari database.'});
+        console.error("Failed to load schedule sheet data from localStorage", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Gagal memuat data schedule.'});
     } finally {
         setIsLoading(false);
     }
   }, [toast]);
 
   useEffect(() => {
-    loadDataFromFirestore();
-  }, [loadDataFromFirestore]);
+    loadDataFromStorage();
+    window.addEventListener('storage', loadDataFromStorage);
+    return () => window.removeEventListener('storage', loadDataFromStorage);
+  }, [loadDataFromStorage]);
 
   const handleInputChange = (rowIndex: number, key: keyof ScheduleSheetRow, value: string) => {
     setData(currentData => {
@@ -99,14 +102,14 @@ export function ScheduleSheet({ isOperatorView }: { isOperatorView?: boolean }) 
     });
   };
   
-  const handleSave = async () => {
+  const handleSave = () => {
      setIsLoading(true);
      try {
-        await saveScheduleSheetData(data);
-        toast({ title: 'Berhasil', description: 'Data schedule berhasil disimpan ke database.' });
+        saveScheduleSheetData(data);
+        toast({ title: 'Berhasil', description: 'Data schedule berhasil disimpan.' });
     } catch (error) {
         console.error("Failed to save schedule sheet data", error);
-        toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal menyimpan data schedule ke database.' });
+        toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal menyimpan data schedule.' });
     } finally {
         setIsLoading(false);
     }
